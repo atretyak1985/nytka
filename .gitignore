@@ -1,0 +1,25 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# node
+node_modules/
+.next/
+out/
+
+# app data
+data/
+*.db
+*.wav
+
+# env & IDE
+.env
+.env.*
+.idea/
+.DS_Store
+
+# research artifacts stay untracked
+*.pdf
