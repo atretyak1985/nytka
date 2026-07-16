@@ -1,4 +1,5 @@
 import logging
+import re
 
 from sqlalchemy.orm import Session
 
@@ -20,22 +21,26 @@ def extract_tasks_for_meeting(db: Session, meeting: Meeting) -> int:
     client = get_client()
     items: list[ActionItem] = []
     for i, chunk in enumerate(chunks):
-        result: ExtractionResult = client.chat.completions.create(
-            model=model,
-            response_model=ExtractionResult,
-            max_retries=2,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt(chunk, i, len(chunks))},
-            ],
-            **kwargs,
-        )
+        try:
+            result: ExtractionResult = client.chat.completions.create(
+                model=model,
+                response_model=ExtractionResult,
+                max_retries=2,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt(chunk, i, len(chunks))},
+                ],
+                **kwargs,
+            )
+        except Exception:
+            logger.exception("LLM extraction failed on chunk %d/%d for meeting %s", i + 1, len(chunks), meeting.id)
+            raise
         items.extend(result.tasks)
 
     seen: set[str] = set()
     created = 0
     for item in items:
-        key = item.title.strip().lower()
+        key = re.sub(r"\s+", " ", item.title.strip().lower())
         if not key or key in seen:
             continue
         seen.add(key)

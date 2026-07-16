@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import MagicMock, patch
 
 from app.db.models import Meeting, Task, TaskStatus, TranscriptSegment
@@ -48,3 +49,13 @@ def test_extraction_empty_transcript_returns_zero(db_session) -> None:
     db_session.commit()
     count = extract_tasks_for_meeting(db_session, meeting)
     assert count == 0
+
+
+def test_extraction_partial_failure_reraises_without_commit(db_session) -> None:
+    meeting = _meeting_with_transcript(db_session)
+    client = MagicMock()
+    client.chat.completions.create.side_effect = RuntimeError("LLM timeout")
+    with patch("app.llm.extraction.get_client", return_value=client):
+        with pytest.raises(RuntimeError):
+            extract_tasks_for_meeting(db_session, meeting)
+    assert db_session.query(Task).filter_by(meeting_id=meeting.id).count() == 0

@@ -1,3 +1,5 @@
+import pytest
+
 from app.llm.chunking import build_chunks, format_timestamp
 
 
@@ -27,3 +29,8 @@ def test_splits_with_overlap() -> None:
     # overlap: tail of chunk N appears in head of chunk N+1
     tail_line = chunks[0].splitlines()[-1]
     assert tail_line in chunks[1]
+
+
+def test_invalid_overlap_raises() -> None:
+    with pytest.raises(ValueError):
+        build_chunks([Seg(0, "hello")], max_chars=100, overlap_chars=100)
