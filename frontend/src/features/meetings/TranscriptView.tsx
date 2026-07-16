@@ -40,7 +40,7 @@ export function TranscriptView({
       {segments.map((s) => (
         <div
           key={s.id}
-          ref={(el) => { if (el) refs.current.set(s.id, el); }}
+          ref={(el) => { if (el) refs.current.set(s.id, el); else refs.current.delete(s.id); }}
           className={cn(
             "rounded p-2 text-sm transition-colors",
             s.id === highlightedId && "bg-yellow-100 dark:bg-yellow-900/40",
