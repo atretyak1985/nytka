@@ -42,3 +42,14 @@ def test_retry_only_from_error(client):
         meeting_id = upload(client).json()["id"]
     # queued meeting cannot be retried
     assert client.post(f"/api/meetings/{meeting_id}/retry").status_code == 409
+
+
+def test_upload_rejects_oversized_file(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "max_upload_mb", 0)
+    before = set(settings.media_dir.glob("*")) if settings.media_dir.exists() else set()
+    resp = upload(client)
+    assert resp.status_code == 413
+    after = set(settings.media_dir.glob("*")) if settings.media_dir.exists() else set()
+    assert after == before  # partial file cleaned up

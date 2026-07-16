@@ -34,23 +34,26 @@ async def upload_meeting(
     media_path = settings.media_dir / f"{uuid.uuid4().hex}_{safe_name}"
     media_path.parent.mkdir(parents=True, exist_ok=True)
 
-    size = 0
-    with media_path.open("wb") as out:
-        while chunk := await file.read(1024 * 1024):
-            size += len(chunk)
-            if size > settings.max_upload_mb * 1024 * 1024:
-                media_path.unlink(missing_ok=True)
-                raise HTTPException(413, f"File exceeds {settings.max_upload_mb} MB limit")
-            out.write(chunk)
+    try:
+        size = 0
+        with media_path.open("wb") as out:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > settings.max_upload_mb * 1024 * 1024:
+                    raise HTTPException(413, f"File exceeds {settings.max_upload_mb} MB limit")
+                out.write(chunk)
 
-    meeting = Meeting(
-        project_id=project.id,
-        title=title or Path(safe_name).stem,
-        source_filename=file.filename or safe_name,
-        media_path=str(media_path),
-    )
-    db.add(meeting)
-    db.commit()
+        meeting = Meeting(
+            project_id=project.id,
+            title=title or Path(safe_name).stem,
+            source_filename=file.filename or safe_name,
+            media_path=str(media_path),
+        )
+        db.add(meeting)
+        db.commit()
+    except Exception:
+        media_path.unlink(missing_ok=True)
+        raise
     db.refresh(meeting)
     background.add_task(run_pipeline, meeting.id)
     return meeting
