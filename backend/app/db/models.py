@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import Enum, Float, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -49,7 +49,7 @@ class Meeting(Base):
     __tablename__ = "meetings"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
     title: Mapped[str] = mapped_column(String(300))
     source_filename: Mapped[str] = mapped_column(String(300))
     media_path: Mapped[str] = mapped_column(String(1000))
@@ -73,7 +73,7 @@ class TranscriptSegment(Base):
     __tablename__ = "transcript_segments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id"))
+    meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id"), index=True)
     t_start: Mapped[float] = mapped_column(Float)
     t_end: Mapped[float] = mapped_column(Float)
     text: Mapped[str] = mapped_column(Text)
@@ -86,8 +86,8 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
-    meeting_id: Mapped[int | None] = mapped_column(ForeignKey("meetings.id"), default=None)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    meeting_id: Mapped[int | None] = mapped_column(ForeignKey("meetings.id"), index=True, default=None)
     title: Mapped[str] = mapped_column(String(500))
     description: Mapped[str] = mapped_column(Text, default="")
     assignee: Mapped[str | None] = mapped_column(String(200), default=None)
@@ -101,6 +101,6 @@ class Task(Base):
     )
     source_timestamp: Mapped[float | None] = mapped_column(Float, default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     meeting: Mapped[Meeting | None] = relationship(back_populates="tasks")
