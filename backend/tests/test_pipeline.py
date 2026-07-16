@@ -50,6 +50,8 @@ def test_run_pipeline_happy_path(db_session, tone_wav, monkeypatch) -> None:
         run_pipeline_with_session(db_session, meeting.id)
     db_session.refresh(meeting)
     assert meeting.status == MeetingStatus.DONE
+    assert meeting.processing_started_at is not None
+    assert meeting.progress is None  # cleared once done
     mock_extract.assert_called_once()
     # tone has no speech; segments may be empty — that's fine, status matters
 

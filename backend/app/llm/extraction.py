@@ -36,6 +36,8 @@ def extract_tasks_for_meeting(db: Session, meeting: Meeting) -> int:
             logger.exception("LLM extraction failed on chunk %d/%d for meeting %s", i + 1, len(chunks), meeting.id)
             raise
         items.extend(result.tasks)
+        meeting.progress = (i + 1) / len(chunks)
+        db.commit()
 
     seen: set[str] = set()
     created = 0

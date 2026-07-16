@@ -34,7 +34,16 @@ def get_model(size: str):
 def transcribe_meeting(db: Session, meeting: Meeting, wav_path: Path) -> None:
     model = get_model(pick_model_size(settings.whisper_model))
     segments, info = model.transcribe(str(wav_path), vad_filter=True)
-    seg_list = list(segments)  # exhaust generator first: fail before touching the session
+    # Exhaust the generator before adding segments: fail before touching TranscriptSegment rows.
+    # Scalar progress updates along the way are safe — they don't poison retry/resume.
+    seg_list = []
+    last_commit = 0.0
+    for seg in segments:
+        seg_list.append(seg)
+        if info.duration and seg.end - last_commit >= 15:  # every ~15s of audio
+            last_commit = seg.end
+            meeting.progress = min(seg.end / info.duration, 0.99)
+            db.commit()
     meeting.language = info.language
     meeting.duration_sec = info.duration
     for seg in seg_list:

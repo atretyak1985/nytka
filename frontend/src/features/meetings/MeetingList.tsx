@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Meeting, MeetingStatus } from "@/lib/client";
+import { ProcessingProgress } from "./ProcessingProgress";
 import { useMeetings, useRetryMeeting } from "./hooks";
 
 const STATUS_VARIANT: Record<MeetingStatus, "default" | "secondary" | "destructive" | "outline"> = {
@@ -33,6 +34,7 @@ export function MeetingList() {
               {m.source_filename} · {new Date(m.created_at).toLocaleString()}
               {m.error_message ? ` · ${m.error_message}` : ""}
             </p>
+            <ProcessingProgress meeting={m} />
           </div>
           <div className="flex items-center gap-2">
             <Badge variant={STATUS_VARIANT[m.status]}>{m.status}</Badge>

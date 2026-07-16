@@ -200,6 +200,10 @@ export interface components {
             duration_sec: number | null;
             /** Language */
             language: string | null;
+            /** Progress */
+            progress: number | null;
+            /** Processing Started At */
+            processing_started_at: string | null;
             /**
              * Created At
              * Format: date-time
@@ -227,6 +231,10 @@ export interface components {
             duration_sec: number | null;
             /** Language */
             language: string | null;
+            /** Progress */
+            progress: number | null;
+            /** Processing Started At */
+            processing_started_at: string | null;
             /**
              * Created At
              * Format: date-time

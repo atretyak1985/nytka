@@ -43,6 +43,17 @@ def test_extraction_invalid_priority_falls_back(db_session) -> None:
     assert task.priority.value == "medium"
 
 
+def test_extraction_updates_progress_per_chunk(db_session) -> None:
+    meeting = _meeting_with_transcript(db_session)
+    fake = ExtractionResult(tasks=[ActionItem(title="X")])
+    client = MagicMock()
+    client.chat.completions.create.return_value = fake
+    with patch("app.llm.extraction.get_client", return_value=client):
+        extract_tasks_for_meeting(db_session, meeting)
+    db_session.refresh(meeting)
+    assert meeting.progress == 1.0  # single chunk → full progress after extraction
+
+
 def test_extraction_empty_transcript_returns_zero(db_session) -> None:
     meeting = Meeting(project_id=1, title="m", source_filename="m.mp4", media_path="/x")
     db_session.add(meeting)

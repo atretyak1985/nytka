@@ -3,6 +3,7 @@
 import { use, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { MeetingTasksPanel } from "@/features/meetings/MeetingTasksPanel";
+import { ProcessingProgress } from "@/features/meetings/ProcessingProgress";
 import { TranscriptView } from "@/features/meetings/TranscriptView";
 import { useMeeting } from "@/features/meetings/hooks";
 
@@ -21,6 +22,7 @@ export default function MeetingDetailPage({ params }: { params: Promise<{ id: st
         <Badge variant={meeting.status === "error" ? "destructive" : "secondary"}>{meeting.status}</Badge>
         {meeting.language && <span className="text-xs text-muted-foreground">lang: {meeting.language}</span>}
       </div>
+      <ProcessingProgress meeting={meeting} />
       {meeting.error_message && <p className="text-sm text-destructive">{meeting.error_message}</p>}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
         <section aria-label="Transcript">

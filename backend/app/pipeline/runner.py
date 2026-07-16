@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import select
@@ -50,6 +51,8 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
         logger.error("pipeline: meeting %s not found", meeting_id)
         return
     try:
+        meeting.processing_started_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        meeting.progress = 0.0
         _set_status(db, meeting, MeetingStatus.PROCESSING)
         wav = wav_path_for(meeting)
         if not wav.exists():
@@ -64,10 +67,12 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
 
         has_tasks = db.scalar(select(Task.id).where(Task.meeting_id == meeting.id).limit(1))
         if not has_tasks:
+            meeting.progress = 0.0
             _set_status(db, meeting, MeetingStatus.EXTRACTING)
             count = extract_tasks_for_meeting(db, meeting)
             logger.info("meeting %s: extracted %s tasks", meeting.id, count)
 
+        meeting.progress = None
         _set_status(db, meeting, MeetingStatus.DONE)
     except Exception as exc:  # noqa: BLE001 - single failure boundary for the background job
         logger.exception("pipeline failed for meeting %s", meeting_id)
