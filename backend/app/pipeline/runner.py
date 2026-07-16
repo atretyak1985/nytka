@@ -51,6 +51,7 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
         _set_status(db, meeting, MeetingStatus.DONE)
     except Exception as exc:  # noqa: BLE001 - single failure boundary for the background job
         logger.exception("pipeline failed for meeting %s", meeting_id)
+        db.rollback()
         meeting.status = MeetingStatus.ERROR
         meeting.error_message = str(exc)[:2000]
         db.commit()

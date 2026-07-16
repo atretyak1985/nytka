@@ -7,13 +7,16 @@ class AudioExtractionError(RuntimeError):
 
 
 def extract_audio(source: Path, target_wav: Path) -> Path:
-    """Extract 16kHz mono wav from any video/audio file via ffmpeg CLI (sidecar, no linking)."""
+    """Extract 16kHz mono wav via ffmpeg CLI (sidecar). Atomic: temp file + rename."""
     target_wav.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target_wav.with_name(target_wav.name + ".part")
     cmd = [
         "ffmpeg", "-y", "-i", str(source),
-        "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", str(target_wav),
+        "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", str(tmp),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
     if result.returncode != 0:
+        tmp.unlink(missing_ok=True)
         raise AudioExtractionError(f"ffmpeg failed: {result.stderr[-2000:]}")
+    tmp.rename(target_wav)
     return target_wav

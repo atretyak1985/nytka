@@ -34,8 +34,9 @@ def get_model(size: str):
 def transcribe_meeting(db: Session, meeting: Meeting, wav_path: Path) -> None:
     model = get_model(pick_model_size(settings.whisper_model))
     segments, info = model.transcribe(str(wav_path), vad_filter=True)
+    seg_list = list(segments)  # exhaust generator first: fail before touching the session
     meeting.language = info.language
     meeting.duration_sec = info.duration
-    for seg in segments:
+    for seg in seg_list:
         db.add(TranscriptSegment(meeting_id=meeting.id, t_start=seg.start, t_end=seg.end, text=seg.text.strip()))
     db.commit()
