@@ -45,3 +45,42 @@ class MeetingOut(BaseModel):
 class MeetingDetailOut(MeetingOut):
     segments: list[SegmentOut]
     tasks: list[TaskOut]
+
+
+class TaskCreateIn(BaseModel):
+    project_id: int
+    title: str
+    description: str = ""
+    assignee: str | None = None
+    priority: TaskPriority = TaskPriority.MEDIUM
+
+
+class TaskPatchIn(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    assignee: str | None = None
+    priority: TaskPriority | None = None
+    status: TaskStatus | None = None
+
+
+class ProjectOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    llm_provider: str
+    llm_model: str
+    llm_base_url: str | None
+    # llm_api_key intentionally excluded from responses
+
+
+class ProjectPatchIn(BaseModel):
+    name: str | None = None
+    llm_provider: str | None = None
+    llm_model: str | None = None
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
+
+
+class LlmTestOut(BaseModel):
+    ok: bool
+    error: str | None = None
