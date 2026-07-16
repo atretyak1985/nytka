@@ -1,0 +1,19 @@
+{
+  "apps": [],
+  "codePath": "/Volumes/Work/Nytka",
+  "commitScopes": [],
+  "displayName": "nytka",
+  "domainTerms": {
+    "product": "TODO: one line about the product"
+  },
+  "enabledPacks": [
+    "infra-pack",
+    "lsp-pack",
+    "uav-pack",
+    "web-pack"
+  ],
+  "mainApp": "TODO-main-app",
+  "name": "nytka",
+  "repos": [],
+  "stack": {}
+}

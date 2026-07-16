@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    # parents[3]: config.py -> core -> app -> backend -> repo root
     data_dir: Path = Path(__file__).resolve().parents[3] / "data"
     database_url: str = ""
     whisper_model: str = "auto"  # auto | tiny | medium | large-v3

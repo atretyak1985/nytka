@@ -4,7 +4,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const res = await fetch(`${API_URL}${path}`, init);
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`API ${res.status}: ${body}`);
+    throw new Error(`API ${res.status}: ${body.slice(0, 300)}`);
   }
   return res.json() as Promise<T>;
 }
