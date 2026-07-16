@@ -3,10 +3,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.schemas import TaskCreateIn, TaskOut, TaskPatchIn
-from app.db.models import Task, TaskStatus
+from app.db.models import Project, Task, TaskStatus
 from app.db.session import get_db
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+
+NON_NULLABLE_FIELDS = {"title", "description", "priority"}
 
 ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.DRAFT: {TaskStatus.APPROVED, TaskStatus.REJECTED},
@@ -18,6 +20,8 @@ ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
 
 @router.post("", response_model=TaskOut, status_code=201)
 def create_task(payload: TaskCreateIn, db: Session = Depends(get_db)) -> Task:
+    if db.get(Project, payload.project_id) is None:
+        raise HTTPException(404, "Project not found")
     task = Task(**payload.model_dump())
     db.add(task)
     db.commit()
@@ -54,6 +58,8 @@ def patch_task(task_id: int, payload: TaskPatchIn, db: Session = Depends(get_db)
             raise HTTPException(409, f"Illegal transition {task.status} -> {new_status}")
         task.status = new_status
     for field, value in updates.items():
+        if value is None and field in NON_NULLABLE_FIELDS:
+            raise HTTPException(422, f"Field '{field}' cannot be null")
         setattr(task, field, value)
     db.commit()
     db.refresh(task)

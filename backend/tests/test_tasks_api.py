@@ -31,6 +31,17 @@ def test_illegal_transition_409(client):
     assert resp.status_code == 409
 
 
+def test_patch_null_title_422(client):
+    task_id = make_task(client).json()["id"]
+    resp = client.patch(f"/api/tasks/{task_id}", json={"title": None})
+    assert resp.status_code == 422
+
+
+def test_create_task_unknown_project_404(client):
+    resp = make_task(client, project_id=999)
+    assert resp.status_code == 404
+
+
 def test_delete(client):
     task_id = make_task(client).json()["id"]
     assert client.delete(f"/api/tasks/{task_id}").status_code == 204

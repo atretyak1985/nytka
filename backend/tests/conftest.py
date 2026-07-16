@@ -1,3 +1,10 @@
+import os
+import tempfile
+
+# Must run before any `app.` import: points the module-level settings/engine
+# at a throwaway dir so lifespan (migrations/seed/sweep) never touches dev data.
+os.environ.setdefault("NYTKA_DATA_DIR", tempfile.mkdtemp(prefix="nytka-test-"))
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

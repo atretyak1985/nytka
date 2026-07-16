@@ -12,6 +12,26 @@ from app.pipeline.transcribe import transcribe_meeting
 
 logger = logging.getLogger(__name__)
 
+ACTIVE_STATUSES = {
+    MeetingStatus.QUEUED,
+    MeetingStatus.PROCESSING,
+    MeetingStatus.TRANSCRIBING,
+    MeetingStatus.EXTRACTING,
+}
+
+
+def sweep_interrupted(db: Session) -> None:
+    """Mark meetings stranded in active statuses as errored.
+
+    BackgroundTasks die with the process, so anything still "in flight"
+    after a restart can never finish — surface it so the user can retry.
+    """
+    for meeting in db.scalars(select(Meeting).where(Meeting.status.in_(ACTIVE_STATUSES))):
+        logger.warning("sweeping interrupted meeting %s (was %s)", meeting.id, meeting.status)
+        meeting.status = MeetingStatus.ERROR
+        meeting.error_message = "Processing was interrupted by a server restart — press Retry."
+    db.commit()
+
 
 def wav_path_for(meeting: Meeting) -> Path:
     media = Path(meeting.media_path)
@@ -52,8 +72,12 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
     except Exception as exc:  # noqa: BLE001 - single failure boundary for the background job
         logger.exception("pipeline failed for meeting %s", meeting_id)
         db.rollback()
+        msg = str(exc)[:2000]
+        api_key = meeting.project.llm_api_key if meeting.project else None
+        if api_key:
+            msg = msg.replace(api_key, "[REDACTED]")
         meeting.status = MeetingStatus.ERROR
-        meeting.error_message = str(exc)[:2000]
+        meeting.error_message = msg
         db.commit()
 
 
