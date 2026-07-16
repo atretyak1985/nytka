@@ -18,7 +18,7 @@ def extract_tasks_for_meeting(db: Session, meeting: Meeting) -> int:
         return 0
 
     model, kwargs = model_and_kwargs(meeting.project)
-    client = get_client()
+    client = get_client(meeting.project.llm_provider)
     items: list[ActionItem] = []
     for i, chunk in enumerate(chunks):
         try:

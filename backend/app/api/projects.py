@@ -38,7 +38,7 @@ def llm_test(project_id: int, db: Session = Depends(get_db)) -> LlmTestOut:
         raise HTTPException(404, "Project not found")
     model, kwargs = model_and_kwargs(project)
     try:
-        client = get_client()
+        client = get_client(project.llm_provider)
         client.chat.completions.create(
             model=model,
             response_model=None,

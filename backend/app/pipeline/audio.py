@@ -11,7 +11,7 @@ def extract_audio(source: Path, target_wav: Path) -> Path:
     target_wav.parent.mkdir(parents=True, exist_ok=True)
     tmp = target_wav.with_name(target_wav.name + ".part")
     cmd = [
-        "ffmpeg", "-y", "-i", str(source),
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(source),
         "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", str(tmp),
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)

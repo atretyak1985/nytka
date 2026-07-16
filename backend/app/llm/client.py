@@ -15,5 +15,12 @@ def model_and_kwargs(project: Project) -> tuple[str, dict]:
     return f"{provider}/{project.llm_model}", {"api_key": project.llm_api_key}
 
 
-def get_client() -> instructor.Instructor:
-    return instructor.from_litellm(litellm.completion)
+def get_client(provider: str | None = None) -> instructor.Instructor:
+    """Create an Instructor client.
+
+    Local OpenAI-compatible servers (LM Studio, Ollama) reject the object-typed
+    ``tool_choice`` that instructor's default TOOLS mode sends, and LM Studio only
+    accepts ``response_format.type`` of ``json_schema``/``text``, so use JSON_SCHEMA.
+    """
+    mode = instructor.Mode.JSON_SCHEMA if provider in ("lmstudio", "ollama") else instructor.Mode.TOOLS
+    return instructor.from_litellm(litellm.completion, mode=mode)

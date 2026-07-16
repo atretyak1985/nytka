@@ -10,6 +10,7 @@ dependencies = [
     "faster-whisper>=1.2.1",
     "instructor>=1.15.4",
     "litellm>=1.92.0",
+    "orjson>=3.11.9",
     "pydantic-settings>=2.14.2",
     "python-multipart>=0.0.32",
     "sqlalchemy>=2.0.51",

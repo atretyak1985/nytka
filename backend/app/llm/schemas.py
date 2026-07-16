@@ -12,4 +12,6 @@ class ActionItem(BaseModel):
 
 
 class ExtractionResult(BaseModel):
-    tasks: list[ActionItem] = Field(default_factory=list)
+    # Required (no default): local servers with schema-constrained decoding (LM Studio)
+    # otherwise satisfy the schema with an empty object `{}` and extraction yields nothing.
+    tasks: list[ActionItem] = Field(description="All extracted action items; empty list if none")
