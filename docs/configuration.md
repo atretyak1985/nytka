@@ -35,6 +35,14 @@ Use **Test connection** on the Settings page (or `POST /api/projects/{id}/llm-te
 - **Local:** an 8–14B instruct model (e.g. Qwen-family) extracts tasks reliably, including mixed Ukrainian/English meetings. Smaller models produce noticeably worse extraction.
 - **Whisper:** `medium` is the CPU sweet spot for uk/en; `large-v3` if you have a GPU; `tiny` only for development smoke tests.
 
+## LAN access (dev)
+
+You can open the app from another device on your network (e.g. `http://192.168.5.24:3000`):
+
+- The backend dev server listens on `0.0.0.0:8000`; the frontend automatically targets port 8000 **on the host it was opened from**, so no config is needed. Setting `NEXT_PUBLIC_API_URL` overrides this.
+- Backend CORS accepts private-range origins (`192.168.*`, `10.*`, `172.16-31.*`) on port 3000.
+- Next.js dev resources require the origin to be listed in `allowedDevOrigins` (`frontend/next.config.ts`) — add your machine's LAN IP there if it differs.
+
 ## Security & privacy notes
 
 - API keys are stored in the local SQLite database, are never returned by any endpoint, and are redacted from error messages (both `llm-test` and pipeline errors).

@@ -11,7 +11,7 @@ dev:
 	$(MAKE) -j2 dev-backend dev-frontend
 
 dev-backend:
-	cd $(ROOT)/backend && uv run uvicorn app.main:app --reload --port 8000
+	cd $(ROOT)/backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 dev-frontend:
 	cd $(ROOT)/frontend && npm run dev
