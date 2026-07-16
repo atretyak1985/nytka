@@ -9,6 +9,8 @@ from app.llm.client import get_client, model_and_kwargs
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
+NON_NULLABLE_FIELDS = {"name", "llm_provider", "llm_model"}
+
 
 @router.get("", response_model=list[ProjectOut])
 def list_projects(db: Session = Depends(get_db)) -> list[Project]:
@@ -21,6 +23,8 @@ def patch_project(project_id: int, payload: ProjectPatchIn, db: Session = Depend
     if project is None:
         raise HTTPException(404, "Project not found")
     for field, value in payload.model_dump(exclude_unset=True).items():
+        if value is None and field in NON_NULLABLE_FIELDS:
+            raise HTTPException(422, f"Field '{field}' cannot be null")
         setattr(project, field, value)
     db.commit()
     db.refresh(project)
@@ -44,4 +48,7 @@ def llm_test(project_id: int, db: Session = Depends(get_db)) -> LlmTestOut:
         )
         return LlmTestOut(ok=True)
     except Exception as exc:  # noqa: BLE001 - report any connectivity error to UI
-        return LlmTestOut(ok=False, error=str(exc)[:500])
+        error_msg = str(exc)[:500]
+        if project.llm_api_key:
+            error_msg = error_msg.replace(project.llm_api_key, "[REDACTED]")
+        return LlmTestOut(ok=False, error=error_msg)
