@@ -111,6 +111,7 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
                   key={a.to}
                   size="sm"
                   variant="outline"
+                  aria-label={`${a.label}: ${t.title}`}
                   onClick={() => patch.mutate({ id: t.id, status: a.to }, { onError })}
                 >
                   {a.label}
