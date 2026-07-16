@@ -37,7 +37,7 @@ export function MeetingList() {
           <div className="flex items-center gap-2">
             <Badge variant={STATUS_VARIANT[m.status]}>{m.status}</Badge>
             {m.status === "error" && (
-              <Button size="sm" variant="outline" onClick={() => retry.mutate(m.id)}>Retry</Button>
+              <Button size="sm" variant="outline" disabled={retry.isPending} onClick={() => retry.mutate(m.id)}>Retry</Button>
             )}
           </div>
         </li>

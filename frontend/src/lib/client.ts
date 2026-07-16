@@ -46,12 +46,12 @@ export const api = {
     if (!res.ok) throw new Error(await res.text());
   },
   listProjects: () => apiFetch<Project[]>("/api/projects"),
-  patchProject: (id: number, payload: Partial<Project> & { llm_api_key?: string; llm_base_url?: string | null }) =>
+  patchProject: (id: number, payload: Omit<Partial<Project>, "id"> & { llm_api_key?: string; llm_base_url?: string | null }) =>
     apiFetch<Project>(`/api/projects/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
   llmTest: (id: number) =>
-    apiFetch<{ ok: boolean; error: string | null }>(`/api/projects/${id}/llm-test`, { method: "POST" }),
+    apiFetch<components["schemas"]["LlmTestOut"]>(`/api/projects/${id}/llm-test`, { method: "POST" }),
 };
