@@ -1,17 +1,19 @@
+import mimetypes
 import re
 import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.schemas import MeetingDetailOut, MeetingOut
 from app.core.config import settings
-from app.db.models import Meeting, MeetingStatus, Project
+from app.db.models import Meeting, MeetingStatus, Project, Task
 from app.db.seed import ensure_default_project
 from app.db.session import get_db
-from app.pipeline.runner import run_pipeline
+from app.pipeline.runner import run_pipeline, wav_path_for
 
 router = APIRouter(prefix="/api/meetings", tags=["meetings"])
 
@@ -94,3 +96,37 @@ def retry_meeting(meeting_id: int, background: BackgroundTasks, db: Session = De
     db.refresh(meeting)
     background.add_task(run_pipeline, meeting.id)
     return meeting
+
+
+@router.delete("/{meeting_id}", status_code=204)
+def delete_meeting(meeting_id: int, db: Session = Depends(get_db)) -> None:
+    meeting = db.get(Meeting, meeting_id)
+    if meeting is None:
+        raise HTTPException(404, "Meeting not found")
+
+    # Remove the meeting's tasks (their meeting_id FK would otherwise dangle);
+    # segments cascade via the relationship. Then drop the row and the media files.
+    for task in db.scalars(select(Task).where(Task.meeting_id == meeting.id)):
+        db.delete(task)
+    media_files = [Path(meeting.media_path), wav_path_for(meeting)]
+    db.delete(meeting)
+    db.commit()
+    for path in media_files:
+        path.unlink(missing_ok=True)
+
+
+@router.get("/{meeting_id}/media")
+def get_meeting_media(meeting_id: int, db: Session = Depends(get_db)) -> FileResponse:
+    """Stream the original uploaded recording for inline playback.
+
+    FileResponse honours HTTP Range requests, so the browser can seek without
+    downloading the whole file.
+    """
+    meeting = db.get(Meeting, meeting_id)
+    if meeting is None:
+        raise HTTPException(404, "Meeting not found")
+    path = Path(meeting.media_path)
+    if not path.exists():
+        raise HTTPException(404, "Media file not found")
+    media_type = mimetypes.guess_type(meeting.source_filename)[0] or "application/octet-stream"
+    return FileResponse(path, media_type=media_type, content_disposition_type="inline")

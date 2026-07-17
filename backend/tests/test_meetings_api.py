@@ -44,6 +44,38 @@ def test_retry_only_from_error(client):
     assert client.post(f"/api/meetings/{meeting_id}/retry").status_code == 409
 
 
+def test_delete_meeting_removes_row_and_file(client):
+    from app.core.config import settings
+
+    before = set(settings.media_dir.glob("*")) if settings.media_dir.exists() else set()
+    with patch("app.api.meetings.run_pipeline"):
+        meeting_id = upload(client).json()["id"]
+    added = (set(settings.media_dir.glob("*")) - before)
+    assert added  # this upload wrote a media file to disk
+
+    assert client.delete(f"/api/meetings/{meeting_id}").status_code == 204
+    assert client.get(f"/api/meetings/{meeting_id}").status_code == 404
+    remaining = set(settings.media_dir.glob("*")) if settings.media_dir.exists() else set()
+    assert added.isdisjoint(remaining)  # this meeting's media file was removed
+
+
+def test_delete_meeting_404(client):
+    assert client.delete("/api/meetings/999").status_code == 404
+
+
+def test_get_meeting_media_streams_file(client):
+    with patch("app.api.meetings.run_pipeline"):
+        meeting_id = upload(client).json()["id"]
+    resp = client.get(f"/api/meetings/{meeting_id}/media")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("video/")
+    assert resp.content == b"fake-video-bytes"
+
+
+def test_get_meeting_media_404(client):
+    assert client.get("/api/meetings/999/media").status_code == 404
+
+
 def test_upload_rejects_oversized_file(client, monkeypatch):
     from app.core.config import settings
 
