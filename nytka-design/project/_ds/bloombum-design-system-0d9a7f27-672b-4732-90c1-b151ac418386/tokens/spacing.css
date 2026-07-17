@@ -1,0 +1,57 @@
+/* ============================================================
+ * Bloombum — Spacing, radii, shadows, motion
+ * ------------------------------------------------------------
+ * The storefront uses generous radii (pill buttons, 20–32px
+ * cards) and soft pink-tinted shadows. The dashboard uses tight,
+ * rectilinear radii (6–18px) and hairline borders instead of
+ * shadows. Both are captured below.
+ * ============================================================ */
+
+:root {
+  /* ---- Spacing scale (4px base) ---------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  /* ---- Radii ---------------------------------------------- */
+  /* Storefront — soft & rounded */
+  --radius-card: 20px;       /* product / content cards          */
+  --radius-card-lg: 32px;    /* feature cards, sheets            */
+  --radius-pill: 999px;      /* buttons, chips, badges          */
+  /* Dashboard — editorial & tight */
+  --radius-chip: 6px;        /* mono badges, sub-nav            */
+  --radius-btn: 8px;         /* dashboard buttons, inputs       */
+  --radius-frame: 14px;      /* dashboard cards / bento tiles   */
+  --radius-frame-lg: 18px;   /* dashboard hero frames           */
+  --radius-sm: 4px;
+
+  /* ---- Shadows -------------------------------------------- */
+  /* Storefront — soft, warm-tinted */
+  --shadow-card: 0 10px 22px rgba(26, 20, 19, 0.06);
+  --shadow-card-hover: 0 16px 34px rgba(26, 20, 19, 0.10);
+  --shadow-cta: 0 4px 14px rgba(122, 13, 56, 0.25);
+  --shadow-cta-hover: 0 6px 20px rgba(122, 13, 56, 0.35);
+  --shadow-sm: 0 1px 3px rgba(26, 20, 19, 0.05);
+  /* Dashboard prefers borders over shadows; this is the rare
+     elevated popover / dropdown shadow. */
+  --shadow-pop: 0 8px 24px rgba(26, 20, 19, 0.12);
+
+  /* ---- Motion --------------------------------------------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1); /* @kind other */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1); /* @kind other */
+  --dur-fast: 150ms;        /* @kind other */ /* dashboard hovers */
+  --dur-base: 200ms;        /* @kind other */ /* storefront lift */
+  --dur-slow: 300ms;        /* @kind other */ /* drawers */
+  --dur-image: 500ms;       /* @kind other */ /* image zoom */
+
+  /* ---- Layout --------------------------------------------- */
+  --container-max: 1280px;  /* storefront content max-width      */
+  --header-h: 72px;         /* both products' top bar            */
+  --sidebar-w: 232px;       /* dashboard sidebar                 */
+}

@@ -1,0 +1,96 @@
+/* ============================================================
+ * Bloombum — Base elements & signature utility classes
+ * ------------------------------------------------------------
+ * Lightweight, framework-free helpers that encode the brand's
+ * signature patterns: the mono eyebrow, the wine CTA, the
+ * hover-lift card, and the status badges. Consumers can use
+ * these directly or as a reference for Tailwind equivalents.
+ * ============================================================ */
+
+:root {
+  color-scheme: light;
+}
+
+/* ---- Brand wordmark ("bloombum", weight-split) ------------- */
+.bb-wordmark {
+  font-family: var(--font-display);
+  font-weight: var(--weight-regular);
+  font-variation-settings: var(--font-display-vs);
+  letter-spacing: -0.03em;
+  color: var(--bb-ink);
+  line-height: 1;
+}
+.bb-wordmark b { font-weight: var(--weight-bold); color: var(--bb-burgundy); }
+
+/* ---- Mono eyebrow — uppercase label above titles ----------- */
+.bb-eyebrow {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-mono-wide);
+  text-transform: uppercase;
+  color: var(--bb-muted);
+}
+
+/* ---- Storefront serif eyebrow (alt, lowercase script-ish) -- */
+.bb-eyebrow-serif {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--text-lg);
+  color: var(--bb-brand);
+}
+
+/* ---- Signature wine CTA ------------------------------------ */
+.bb-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 28px;
+  height: 48px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--bb-gradient-cta);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-base);
+  cursor: pointer;
+  box-shadow: var(--shadow-cta);
+  transition: transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out);
+}
+.bb-cta:hover { background: var(--bb-gradient-cta-hover); transform: translateY(-2px); box-shadow: var(--shadow-cta-hover); }
+.bb-cta:active { transform: translateY(0); }
+.bb-cta:focus-visible { outline: 2px solid var(--bb-burgundy); outline-offset: 3px; }
+
+/* ---- Hover-lift — for cards & tiles ------------------------ */
+.bb-hover-lift { transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out); }
+.bb-hover-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
+
+/* ---- Status badges (mono, uppercase) ----------------------- */
+.bb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-chip);
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-mono);
+  white-space: nowrap;
+}
+.bb-badge--ink     { background: var(--bb-ink);        color: var(--bb-paper); }
+.bb-badge--brand   { background: var(--bb-brand-soft); color: var(--bb-brand); }
+.bb-badge--success { background: var(--bb-sage-soft);  color: var(--bb-sage); }
+.bb-badge--warning { background: var(--bb-amber-soft); color: var(--bb-amber); }
+.bb-badge--info    { background: var(--bb-sky-soft);   color: var(--bb-sky); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bb-hover-lift, .bb-cta { transition: none; }
+  .bb-hover-lift:hover, .bb-cta:hover { transform: none; }
+}

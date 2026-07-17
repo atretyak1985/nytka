@@ -1,0 +1,80 @@
+/* ============================================================
+ * Bloombum — Colour tokens
+ * ------------------------------------------------------------
+ * One brand, two surfaces. The wine/burgundy brand family, the
+ * warm-cream paper, and the blush accents are shared across the
+ * consumer STOREFRONT and the editorial VENDOR DASHBOARD. The
+ * storefront leans warmer and softer (blush pinks); the dashboard
+ * leans drier and more editorial (cream + ink + mono status hues).
+ *
+ * Source of truth: bloomblum_client/globals.css (editorial.* +
+ * bloombum.* tokens) and bloomblum_vendor/globals.css.
+ * ============================================================ */
+
+:root {
+  /* ---- Brand · wine / burgundy family ---------------------- */
+  --bb-wine: #5e0828;          /* deepest — hover / pressed ink   */
+  --bb-burgundy: #7a0d38;      /* PRIMARY brand ink — wordmark "bum", CTAs */
+  --bb-brand: #8c1042;         /* editorial brand — links, accents */
+  --bb-rose-deep: #a8254e;     /* secondary accent                */
+  --bb-brand-pink: #e94f77;    /* lively pink — dashboard charts, sale tags */
+  --bb-blush: #f5d8df;         /* wordmark accent on dark surfaces */
+  --bb-brand-soft: #fce5eb;    /* soft brand tint — badges, chips  */
+  --bb-accent: #ffe7f0;        /* storefront blush accent surface  */
+
+  /* ---- Surfaces · warm cream / paper ----------------------- */
+  --bb-paper: #faf7f2;         /* primary page background (editorial) */
+  --bb-blush-bg: #fff8fb;      /* storefront soft-pink page wash    */
+  --bb-surface: #ffffff;       /* cards, sheets                     */
+  --bb-surface-2: #f4efe7;     /* sunken / hover fill               */
+
+  /* ---- Ink · text ------------------------------------------ */
+  --bb-ink: #1a1413;           /* primary text — near-black warm     */
+  --bb-ink-2: #3e342f;         /* secondary text                     */
+  --bb-text: #2e1c26;          /* storefront warm-plum body text     */
+  --bb-muted: #8a7e76;         /* muted captions, labels             */
+
+  /* ---- Hairlines ------------------------------------------- */
+  --bb-line: #e5dccd;          /* default border (warm taupe)        */
+  --bb-line-soft: #efe8dc;     /* softer inner divider               */
+  --bb-line-blush: #efd9e3;    /* storefront blush border            */
+
+  /* ---- Status / semantic ----------------------------------- */
+  --bb-sage: #5c7b5c;          --bb-sage-soft: #dde8da;   /* success / fresh */
+  --bb-amber: #c57f2a;         --bb-amber-soft: #faebd0;  /* warning / prep  */
+  --bb-sky: #2f6b8e;           --bb-sky-soft: #dceaf2;    /* info / delivery */
+  --bb-violet: #5a4fcf;        --bb-violet-soft: #e6e4fb; /* accent / promo  */
+  --bb-danger: #c0344d;        --bb-danger-soft: #f7dde2; /* error / refund  */
+
+  /* ---- Pure neutrals (rare; prefer warm inks above) -------- */
+  --bb-white: #ffffff;
+  --bb-black: #1a1413;
+
+  /* ---- Signature gradients --------------------------------- */
+  /* Storefront primary CTA — wine wash (matches wordmark ink).  */
+  --bb-gradient-cta: linear-gradient(90deg, #7a0d38, #5e0828); /* @kind color */
+  --bb-gradient-cta-hover: linear-gradient(90deg, #8c1042, #6f0a30); /* @kind color */
+  /* Soft hero / section wash.                                   */
+  --bb-gradient-blush: linear-gradient(180deg, #ffffff 0%, #fff1f4 100%); /* @kind color */
+
+  /* ============================================================
+   * SEMANTIC ALIASES — prefer these in components
+   * ============================================================ */
+  --text-heading: var(--bb-ink);
+  --text-body: var(--bb-ink-2);
+  --text-muted: var(--bb-muted);
+  --text-on-brand: #ffffff;
+
+  --surface-page: var(--bb-paper);
+  --surface-card: var(--bb-surface);
+  --surface-sunken: var(--bb-surface-2);
+  --surface-accent: var(--bb-brand-soft);
+
+  --border-default: var(--bb-line);
+  --border-soft: var(--bb-line-soft);
+
+  --brand: var(--bb-burgundy);
+  --brand-strong: var(--bb-wine);
+  --brand-accent: var(--bb-brand);
+  --focus-ring: var(--bb-burgundy);
+}
