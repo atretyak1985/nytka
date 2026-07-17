@@ -66,6 +66,19 @@ export function useDeleteTask() {
   });
 }
 
+export function useJiraPush() {
+  const invalidate = useInvalidateTasks();
+  return useMutation({
+    mutationFn: api.jiraPush,
+    onSuccess: (task) => {
+      invalidate();
+      if (task.jira_issue_key) toast.success(`Created ${task.jira_issue_key} in Jira`);
+      else if (task.jira_sync_error) toast.error(`Jira push failed: ${task.jira_sync_error}`);
+    },
+    onError: toastOnError,
+  });
+}
+
 export const STATUS_ACTIONS: Record<Task["status"], { label: string; to: TaskStatus }[]> = {
   draft: [
     { label: "Approve", to: "approved" },
