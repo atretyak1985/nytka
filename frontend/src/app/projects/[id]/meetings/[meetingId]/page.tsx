@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useRef } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -9,6 +9,8 @@ import { useMeeting, useReextractMeeting, useRetryMeeting } from "@/features/mee
 import { ProcessingStats } from "@/features/meetings/ProcessingStats";
 import { DeleteMeetingButton } from "@/features/meetings/DeleteMeetingButton";
 import { usePatchTask } from "@/features/tasks/hooks";
+import { useProject } from "@/features/projects/hooks";
+import { JiraApproveDialog } from "@/features/tasks/JiraApproveDialog";
 import { ACTIVE_STATUSES, type MeetingStatus, type Task } from "@/lib/client";
 import { MEETING_STATUS, TASK_STATUS, formatDurationMinutes, formatTimestamp, speakerColor } from "@/lib/design-maps";
 import { API_URL } from "@/lib/api";
@@ -65,6 +67,9 @@ export default function MeetingDetailPage({
   const retryMeeting = useRetryMeeting();
   const reextractMeeting = useReextractMeeting();
   const patchTask = usePatchTask();
+  const { data: project } = useProject(projectId);
+  const [previewTask, setPreviewTask] = useState<Task | null>(null);
+  const jiraFlow = Boolean(project?.jira_enabled && project?.jira_key);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaUrl = `${API_URL}/api/meetings/${meetingId}/media`;
@@ -301,7 +306,9 @@ export default function MeetingDetailPage({
                 <DraftTaskCard
                   key={task.id}
                   task={task}
-                  onApprove={() => patchTask.mutate({ id: task.id, status: "approved" })}
+                  onApprove={() =>
+                    jiraFlow ? setPreviewTask(task) : patchTask.mutate({ id: task.id, status: "approved" })
+                  }
                   onReject={() => patchTask.mutate({ id: task.id, status: "rejected" })}
                   onFocus={
                     task.source_timestamp !== null
@@ -342,6 +349,7 @@ export default function MeetingDetailPage({
               </div>
             </div>
           )}
+          <JiraApproveDialog task={previewTask} onClose={() => setPreviewTask(null)} />
         </div>
       </div>
     </div>
