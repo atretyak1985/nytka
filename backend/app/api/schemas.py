@@ -27,6 +27,9 @@ class TaskOut(BaseModel):
     source_timestamp: float | None
     created_at: datetime
     updated_at: datetime
+    jira_issue_key: str | None
+    jira_synced_at: datetime | None
+    jira_sync_error: str | None
 
 
 class MeetingOut(BaseModel):
@@ -64,6 +67,7 @@ class TaskPatchIn(BaseModel):
     assignee: str | None = None
     priority: TaskPriority | None = None
     status: TaskStatus | None = None
+    push_to_jira: bool = True  # only consulted on the draft -> approved transition
 
 
 class TeamMember(BaseModel):
@@ -124,10 +128,36 @@ class LlmTestOut(BaseModel):
 class AppSettingsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     extraction_prompt: str
+    jira_base_url: str
+    jira_email: str
+    jira_token_set: bool
+    jira_token_hint: str  # last 4 chars of the stored token, "" when unset
 
 
 class AppSettingsPatchIn(BaseModel):
     extraction_prompt: str | None = None
+    jira_base_url: str | None = None
+    jira_email: str | None = None
+    jira_api_token: str | None = None  # None = keep existing; "" = clear
+
+
+class JiraTestOut(BaseModel):
+    ok: bool
+    account_name: str | None = None
+    error: str | None = None
+
+
+class JiraPreviewOut(BaseModel):
+    ok: bool
+    project_key: str | None = None
+    issue_type: str | None = None
+    summary: str | None = None
+    description: str | None = None
+    priority: str | None = None
+    assignee_query: str | None = None
+    assignee_found: bool = False
+    assignee_display_name: str | None = None
+    error: str | None = None
 
 
 class LlmConnectOut(BaseModel):
