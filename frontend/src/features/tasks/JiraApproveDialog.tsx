@@ -18,12 +18,13 @@ import {
  * exact issue the backend will create (same mapping code), then approves. */
 export function JiraApproveDialog({ task, onClose }: { task: Task | null; onClose: () => void }) {
   const patchTask = usePatchTask();
-  const { data: preview, isLoading } = useQuery({
+  const { data: preview, isLoading, isError } = useQuery({
     queryKey: ["jira-preview", task?.id],
     queryFn: () => api.getJiraPreview((task as Task).id),
     enabled: task !== null,
     staleTime: 0,
     gcTime: 0,
+    retry: false,
   });
 
   const approve = (pushToJira: boolean) => {
@@ -53,12 +54,12 @@ export function JiraApproveDialog({ task, onClose }: { task: Task | null; onClos
           </DialogDescription>
         </DialogHeader>
 
-        {isLoading || !preview ? (
+        {isLoading ? (
           <div className="flex items-center gap-2 py-6 text-xs text-bb-muted" role="status">
             <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
             Loading Jira preview…
           </div>
-        ) : preview.ok ? (
+        ) : preview?.ok ? (
           <div className="rounded-bb-frame border border-bb-line bg-bb-paper p-4">
             <div className="mb-2 flex items-center gap-2">
               <SquareCheckBig className="size-3.5 text-bb-sky" aria-hidden="true" />
@@ -78,7 +79,7 @@ export function JiraApproveDialog({ task, onClose }: { task: Task | null; onClos
               </span>
               <span className="flex items-center gap-1.5 text-xs text-bb-ink-2">
                 <UserRound className="size-3.5 text-bb-muted" aria-hidden="true" />
-                {preview.assignee_found ? preview.assignee_display_name : "Unassigned"}
+                {preview.assignee_found && preview.assignee_display_name ? preview.assignee_display_name : "Unassigned"}
               </span>
             </div>
             {preview.assignee_query && !preview.assignee_found && (
@@ -91,7 +92,7 @@ export function JiraApproveDialog({ task, onClose }: { task: Task | null; onClos
         ) : (
           <p className="m-0 flex items-start gap-1.5 text-xs text-bb-danger">
             <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden="true" />
-            {preview.error ?? "Could not load the Jira preview."}
+            {preview?.error ?? (isError ? "Could not reach the server to load the Jira preview." : "Could not load the Jira preview.")}
           </p>
         )}
 
@@ -103,7 +104,7 @@ export function JiraApproveDialog({ task, onClose }: { task: Task | null; onClos
           >
             Cancel
           </button>
-          {preview && !preview.ok && (
+          {!isLoading && !preview?.ok && (
             <button
               type="button"
               onClick={() => approve(false)}

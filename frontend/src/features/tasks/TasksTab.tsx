@@ -168,7 +168,7 @@ export function TasksTab({ projectId }: { projectId: number }) {
               isFirst={i === 0}
               jiraBaseUrl={appSettings?.jira_base_url ?? ""}
               onJiraRetry={() => jiraPush.mutate(task.id)}
-              onStatusChange={(to) => (to === "approved" ? handleApprove(task) : handleStatusChange(task.id, to))}
+              onStatusChange={(to) => handleStatusChange(task.id, to)}
               onDelete={() => handleDelete(task.id)}
             />
           ))}
@@ -273,14 +273,20 @@ function TaskRow({
       <span className="min-w-0">
         <span className="block truncate text-[13px] font-medium text-bb-ink">{task.title}</span>
         {task.jira_issue_key ? (
-          <a
-            href={jiraBaseUrl ? `${jiraBaseUrl}/browse/${task.jira_issue_key}` : undefined}
-            target="_blank"
-            rel="noreferrer"
-            className="font-mono text-[10px] tracking-[0.06em] text-bb-sky uppercase hover:underline"
-          >
-            {task.jira_issue_key}
-          </a>
+          jiraBaseUrl ? (
+            <a
+              href={`${jiraBaseUrl}/browse/${task.jira_issue_key}`}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono text-[10px] tracking-[0.06em] text-bb-sky uppercase hover:underline"
+            >
+              {task.jira_issue_key}
+            </a>
+          ) : (
+            <span className="font-mono text-[10px] tracking-[0.06em] text-bb-sky uppercase">
+              {task.jira_issue_key}
+            </span>
+          )
         ) : task.jira_sync_error ? (
           <span className="flex items-center gap-1.5">
             <span
