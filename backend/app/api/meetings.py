@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.schemas import MeetingDetailOut, MeetingOut
 from app.core.config import settings
-from app.db.models import Meeting, MeetingStatus
+from app.db.models import Meeting, MeetingStatus, Project
 from app.db.seed import ensure_default_project
 from app.db.session import get_db
 from app.pipeline.runner import run_pipeline
@@ -23,13 +23,19 @@ async def upload_meeting(
     file: UploadFile,
     background: BackgroundTasks,
     title: str | None = Form(default=None),
+    project_id: int | None = Form(default=None),
     db: Session = Depends(get_db),
 ) -> Meeting:
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(422, f"Unsupported file type '{ext}'. Allowed: {sorted(ALLOWED_EXTENSIONS)}")
 
-    project = ensure_default_project(db)
+    if project_id is not None:
+        project = db.get(Project, project_id)
+        if project is None:
+            raise HTTPException(404, "Project not found")
+    else:
+        project = ensure_default_project(db)
     safe_name = re.sub(r"[^\w.\-]", "_", file.filename or f"upload{ext}")
     media_path = settings.media_dir / f"{uuid.uuid4().hex}_{safe_name}"
     media_path.parent.mkdir(parents=True, exist_ok=True)
@@ -60,8 +66,11 @@ async def upload_meeting(
 
 
 @router.get("", response_model=list[MeetingOut])
-def list_meetings(db: Session = Depends(get_db)) -> list[Meeting]:
-    return list(db.scalars(select(Meeting).order_by(Meeting.created_at.desc())))
+def list_meetings(project_id: int | None = None, db: Session = Depends(get_db)) -> list[Meeting]:
+    query = select(Meeting).order_by(Meeting.created_at.desc())
+    if project_id is not None:
+        query = query.where(Meeting.project_id == project_id)
+    return list(db.scalars(query))
 
 
 @router.get("/{meeting_id}", response_model=MeetingDetailOut)

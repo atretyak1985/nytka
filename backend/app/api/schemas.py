@@ -65,18 +65,50 @@ class TaskPatchIn(BaseModel):
     status: TaskStatus | None = None
 
 
+class TeamMember(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    name: str
+    role: str
+
+
 class ProjectOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     name: str
+    color: str
+    description: str
+    ai_context: str
+    task_prefix: str
+    task_format: str
+    glossary: list[str]
+    team: list[TeamMember]
+    jira_enabled: bool
+    jira_key: str
     llm_provider: str
     llm_model: str
     llm_base_url: str | None
+    created_at: datetime
+    updated_at: datetime
     # llm_api_key intentionally excluded from responses
+
+
+class ProjectCreateIn(BaseModel):
+    name: str
+    description: str = ""
+    color: str = "#7a0d38"
 
 
 class ProjectPatchIn(BaseModel):
     name: str | None = None
+    color: str | None = None
+    description: str | None = None
+    ai_context: str | None = None
+    task_prefix: str | None = None
+    task_format: str | None = None
+    glossary: list[str] | None = None
+    team: list[TeamMember] | None = None
+    jira_enabled: bool | None = None
+    jira_key: str | None = None
     llm_provider: str | None = None
     llm_model: str | None = None
     llm_base_url: str | None = None

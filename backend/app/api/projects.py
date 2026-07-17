@@ -2,19 +2,41 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.schemas import LlmTestOut, ProjectOut, ProjectPatchIn
+from app.api.schemas import LlmTestOut, ProjectCreateIn, ProjectOut, ProjectPatchIn
 from app.db.models import Project
 from app.db.session import get_db
 from app.llm.client import get_client, model_and_kwargs
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
-NON_NULLABLE_FIELDS = {"name", "llm_provider", "llm_model"}
+NON_NULLABLE_FIELDS = {
+    "name",
+    "color",
+    "description",
+    "ai_context",
+    "task_prefix",
+    "task_format",
+    "glossary",
+    "team",
+    "jira_enabled",
+    "jira_key",
+    "llm_provider",
+    "llm_model",
+}
 
 
 @router.get("", response_model=list[ProjectOut])
 def list_projects(db: Session = Depends(get_db)) -> list[Project]:
     return list(db.scalars(select(Project).order_by(Project.id)))
+
+
+@router.post("", response_model=ProjectOut, status_code=201)
+def create_project(payload: ProjectCreateIn, db: Session = Depends(get_db)) -> Project:
+    project = Project(name=payload.name, description=payload.description, color=payload.color)
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return project
 
 
 @router.patch("/{project_id}", response_model=ProjectOut)
