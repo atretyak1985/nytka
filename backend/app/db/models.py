@@ -115,6 +115,9 @@ class Task(Base):
         default=TaskStatus.DRAFT,
     )
     source_timestamp: Mapped[float | None] = mapped_column(Float, default=None)
+    jira_issue_key: Mapped[str | None] = mapped_column(String(50), default=None)  # e.g. CRM-42
+    jira_synced_at: Mapped[datetime | None] = mapped_column(default=None)
+    jira_sync_error: Mapped[str | None] = mapped_column(Text, default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
@@ -128,4 +131,7 @@ class AppSetting(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     extraction_prompt: Mapped[str] = mapped_column(Text, default="")
+    jira_base_url: Mapped[str] = mapped_column(String(500), default="")  # e.g. https://acme.atlassian.net
+    jira_email: Mapped[str] = mapped_column(String(300), default="")
+    jira_api_token: Mapped[str] = mapped_column(String(500), default="")  # stored plaintext locally; never returned by the API
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
