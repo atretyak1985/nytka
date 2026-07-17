@@ -31,9 +31,9 @@ function toFormState(project: Project): FormState {
     team: project.team,
     llmProvider,
     llmModel: project.llm_model,
-    // LM Studio always talks to the fixed IPv4 loopback endpoint (`localhost` resolves
-    // to `::1` first on macOS); this also heals legacy `localhost` rows on next save.
-    llmBaseUrl: llmProvider === "lmstudio" ? LMSTUDIO_BASE_URL : (project.llm_base_url ?? ""),
+    // Use the stored server URL as-is (LM Studio can be on any host/port); only fall
+    // back to the local default when nothing is set yet.
+    llmBaseUrl: project.llm_base_url ?? (llmProvider === "lmstudio" ? LMSTUDIO_BASE_URL : ""),
     jiraEnabled: project.jira_enabled,
     jiraKey: project.jira_key,
   };
@@ -263,7 +263,8 @@ export function SettingsTab({ project }: { project: Project }) {
                 setForm((f) => ({
                   ...f,
                   llmProvider,
-                  llmBaseUrl: llmProvider === "lmstudio" ? LMSTUDIO_BASE_URL : f.llmBaseUrl,
+                  // Seed the local default only if no URL is set yet; keep a custom one.
+                  llmBaseUrl: llmProvider === "lmstudio" && !f.llmBaseUrl ? LMSTUDIO_BASE_URL : f.llmBaseUrl,
                 }));
               }}
             >
@@ -304,6 +305,21 @@ export function SettingsTab({ project }: { project: Project }) {
               }`}
             />
           </div>
+          {local && (
+            <div className="mb-3 flex items-center gap-2.5">
+              <span className="w-[70px] shrink-0 font-mono text-[10px] tracking-[0.08em] text-bb-muted uppercase">Server</span>
+              <input
+                value={form.llmBaseUrl}
+                onChange={(e) => {
+                  setConnectionStatus(null);
+                  setForm((f) => ({ ...f, llmBaseUrl: e.target.value }));
+                }}
+                placeholder={LMSTUDIO_BASE_URL}
+                aria-label="LM Studio server URL"
+                className="h-8 flex-1 rounded-bb-btn border border-bb-line bg-bb-paper px-2.5 font-mono text-xs text-bb-ink outline-none focus-visible:border-bb-burgundy"
+              />
+            </div>
+          )}
           <div className="mb-3 flex items-center gap-3">
             <button
               type="button"

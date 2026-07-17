@@ -1,14 +1,17 @@
 "use client";
 
-import { use, useEffect, useRef } from "react";
+import { use, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Check } from "lucide-react";
 import { useMeeting, useRetryMeeting } from "@/features/meetings/hooks";
+import { ProcessingStats } from "@/features/meetings/ProcessingStats";
+import { DeleteMeetingButton } from "@/features/meetings/DeleteMeetingButton";
 import { usePatchTask } from "@/features/tasks/hooks";
 import { ACTIVE_STATUSES, type MeetingStatus, type Task } from "@/lib/client";
 import { MEETING_STATUS, TASK_STATUS, formatDurationMinutes, formatTimestamp, speakerColor } from "@/lib/design-maps";
+import { API_URL } from "@/lib/api";
 import { Chip } from "@/components/ui/chip";
 
 const PIPELINE_STEPS = ["Audio", "Transcription", "Task extraction", "Done"] as const;
@@ -27,6 +30,25 @@ function stepIndexForStatus(status: MeetingStatus): number {
   }
 }
 
+/**
+ * Resolve a timestamp (seconds, from a task's `source_timestamp`) to the id of the
+ * transcript segment being spoken then: the segment whose range contains it, else the
+ * last segment starting at/before it, else the first. Exact-equality never matches
+ * because Whisper segment boundaries are floats unrelated to the task timestamp.
+ */
+function segmentIdAtTime(
+  segments: { id: number; t_start: number; t_end: number }[],
+  timeSec: number | null,
+): number | null {
+  if (timeSec === null || segments.length === 0) return null;
+  let fallback: number | null = null;
+  for (const s of segments) {
+    if (timeSec >= s.t_start && timeSec <= s.t_end) return s.id;
+    if (s.t_start <= timeSec) fallback = s.id;
+  }
+  return fallback ?? segments[0].id;
+}
+
 export default function MeetingDetailPage({
   params,
 }: {
@@ -43,17 +65,35 @@ export default function MeetingDetailPage({
   const retryMeeting = useRetryMeeting();
   const patchTask = usePatchTask();
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const highlightedRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const mediaUrl = `${API_URL}/api/meetings/${meetingId}/media`;
 
+  const seekVideo = (sec: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = sec;
+    video.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    void video.play().catch(() => {});
+  };
+
+  const highlightSegmentId = useMemo(
+    () => segmentIdAtTime(meeting?.segments ?? [], highlightSeg),
+    [meeting?.segments, highlightSeg],
+  );
+
+  // Scroll the highlighted segment near the top of the transcript pane (not the page).
   useEffect(() => {
-    if (highlightSeg !== null && highlightedRef.current) {
-      highlightedRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
-  }, [highlightSeg, meeting]);
+    if (highlightSegmentId === null) return;
+    const container = transcriptRef.current;
+    const el = container?.querySelector(`[data-seg="${highlightSegmentId}"]`);
+    if (!container || !(el instanceof HTMLElement)) return;
+    const delta = el.getBoundingClientRect().top - container.getBoundingClientRect().top;
+    container.scrollTo({ top: container.scrollTop + delta - 70, behavior: "smooth" });
+  }, [highlightSegmentId]);
 
-  const focusSegment = (segId: number) => {
+  const focusSegment = (timeSec: number) => {
     const qs = new URLSearchParams(searchParams);
-    qs.set("seg", String(segId));
+    qs.set("seg", String(timeSec));
     router.replace(`/projects/${projectId}/meetings/${meetingId}?${qs.toString()}`, { scroll: false });
   };
 
@@ -76,7 +116,8 @@ export default function MeetingDetailPage({
   const isActive = ACTIVE_STATUSES.includes(meeting.status);
   const isError = meeting.status === "error";
   const currentStep = stepIndexForStatus(meeting.status);
-  const pct = `${Math.round(meeting.progress ?? 0)}%`;
+  // `progress` is a 0–1 fraction from the backend; render it as a percentage.
+  const pct = `${Math.round((meeting.progress ?? 0) * 100)}%`;
   const statusChip = MEETING_STATUS[meeting.status];
 
   const drafts = meeting.tasks.filter((t) => t.status === "draft");
@@ -97,9 +138,15 @@ export default function MeetingDetailPage({
           {meeting.title}
         </h1>
         <Chip chip={statusChip} className="text-[10px]" />
+        <span className="flex-1" />
+        <DeleteMeetingButton
+          meetingId={meeting.id}
+          onDeleted={() => router.push(`/projects/${projectId}?tab=meetings`)}
+        />
       </div>
       <p className="m-0 mb-5 font-mono text-[10px] tracking-[0.08em] text-bb-muted uppercase">
         {meeting.language ?? "—"} · {formatDurationMinutes(meeting.duration_sec)} · {meeting.source_filename}
+        <ProcessingStats meeting={meeting} className="text-bb-ink-2" withSeparator />
       </p>
 
       {isActive && (
@@ -142,7 +189,7 @@ export default function MeetingDetailPage({
                 style={{ width: pct }}
               />
             </div>
-            <span className="font-mono text-[11px] text-bb-brand">{pct}</span>
+            <span className="font-mono text-[11px] font-semibold text-bb-ink tabular-nums">{pct}</span>
           </div>
         </div>
       )}
@@ -165,6 +212,18 @@ export default function MeetingDetailPage({
         </div>
       )}
 
+      <div className="mb-4.5 overflow-hidden rounded-bb-frame border border-bb-line bg-black">
+        <video
+          ref={videoRef}
+          src={mediaUrl}
+          controls
+          preload="metadata"
+          className="max-h-[440px] w-full bg-black"
+        >
+          Your browser cannot play this recording.
+        </video>
+      </div>
+
       <div className="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="overflow-hidden rounded-bb-frame border border-bb-line bg-bb-surface">
           <div className="flex items-center justify-between border-b border-bb-line px-5 py-3.5">
@@ -175,16 +234,22 @@ export default function MeetingDetailPage({
           </div>
           <div ref={transcriptRef} className="max-h-[calc(100vh-330px)] overflow-y-auto px-3 pt-2.5 pb-4">
             {meeting.segments.map((segment) => {
-              const isHighlighted = highlightSeg !== null && segment.t_start === highlightSeg;
+              const isHighlighted = segment.id === highlightSegmentId;
               return (
                 <div
                   key={segment.id}
-                  ref={isHighlighted ? highlightedRef : undefined}
                   data-seg={segment.id}
                   className="grid grid-cols-[50px_1fr] gap-3 rounded-[10px] px-3 py-2.5 transition-colors duration-300"
                   style={{ background: isHighlighted ? "var(--bb-brand-soft)" : "transparent" }}
                 >
-                  <span className="pt-0.5 font-mono text-[10px] text-bb-muted">{formatTimestamp(segment.t_start)}</span>
+                  <button
+                    type="button"
+                    onClick={() => seekVideo(segment.t_start)}
+                    title="Play from here"
+                    className="h-fit pt-0.5 text-left font-mono text-[10px] text-bb-muted transition-colors hover:text-bb-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy"
+                  >
+                    {formatTimestamp(segment.t_start)}
+                  </button>
                   <div>
                     <span className={`font-mono text-[10px] font-semibold tracking-[0.06em] uppercase ${speakerColor(segment.speaker)}`}>
                       {segment.speaker ?? "Unknown"}
@@ -220,7 +285,14 @@ export default function MeetingDetailPage({
                   task={task}
                   onApprove={() => patchTask.mutate({ id: task.id, status: "approved" })}
                   onReject={() => patchTask.mutate({ id: task.id, status: "rejected" })}
-                  onFocus={task.source_timestamp !== null ? () => focusSegment(task.source_timestamp as number) : undefined}
+                  onFocus={
+                    task.source_timestamp !== null
+                      ? () => {
+                          focusSegment(task.source_timestamp as number);
+                          seekVideo(task.source_timestamp as number);
+                        }
+                      : undefined
+                  }
                 />
               ))}
               {drafts.length === 0 && (

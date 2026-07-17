@@ -46,3 +46,14 @@ export function useRetryMeeting() {
     },
   });
 }
+
+export function useDeleteMeeting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.deleteMeeting,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["meetings"] });
+      void qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+}

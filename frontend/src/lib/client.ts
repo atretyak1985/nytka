@@ -25,6 +25,10 @@ export const api = {
   },
   getMeeting: (id: number) => apiFetch<MeetingDetail>(`/api/meetings/${id}`),
   retryMeeting: (id: number) => apiFetch<Meeting>(`/api/meetings/${id}/retry`, { method: "POST" }),
+  deleteMeeting: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_URL}/api/meetings/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(await res.text());
+  },
   uploadMeeting: async (file: File, projectId: number, title?: string): Promise<Meeting> => {
     const form = new FormData();
     form.append("file", file);

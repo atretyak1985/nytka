@@ -8,6 +8,7 @@ import { ACTIVE_STATUSES } from "@/lib/client";
 import { MEETING_STATUS, formatDurationMinutes, relativeDay } from "@/lib/design-maps";
 import { Chip } from "@/components/ui/chip";
 import { useRetryMeeting } from "@/features/meetings/hooks";
+import { DeleteMeetingButton } from "@/features/meetings/DeleteMeetingButton";
 
 export function MeetingList({ projectId, meetings }: { projectId: number; meetings: Meeting[] }) {
   if (meetings.length === 0) {
@@ -35,7 +36,8 @@ function MeetingRow({ projectId, meeting, isFirst }: { projectId: number; meetin
   const isActive = ACTIVE_STATUSES.includes(meeting.status);
   const isError = meeting.status === "error";
   const chip = MEETING_STATUS[meeting.status];
-  const pct = `${Math.round(meeting.progress ?? 0)}%`;
+  // `progress` is a 0–1 fraction from the backend; render it as a percentage.
+  const pct = `${Math.round((meeting.progress ?? 0) * 100)}%`;
 
   return (
     <Link
@@ -59,7 +61,7 @@ function MeetingRow({ projectId, meeting, isFirst }: { projectId: number; meetin
                 style={{ width: pct }}
               />
             </div>
-            <span className="animate-bb-blink font-mono text-[10px] text-bb-burgundy">{pct}</span>
+            <span className="font-mono text-[10px] font-semibold text-bb-ink tabular-nums">{pct}</span>
           </div>
         )}
         {isError && meeting.error_message && (
@@ -83,6 +85,7 @@ function MeetingRow({ projectId, meeting, isFirst }: { projectId: number; meetin
             Retry
           </button>
         )}
+        {!isActive && <DeleteMeetingButton meetingId={meeting.id} label="" />}
         <Chip chip={chip} />
         <ChevronRight className="size-[15px] text-bb-muted" aria-hidden="true" />
       </div>

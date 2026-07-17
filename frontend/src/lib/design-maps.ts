@@ -66,6 +66,22 @@ export function formatDurationMinutes(totalSeconds: number | null): string {
   return `${mins} min`;
 }
 
+/** Compact elapsed/remaining duration, e.g. 83 -> "1m 23s", 42 -> "42s". */
+export function formatShortDuration(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return m > 0 ? `${m}m ${rem}s` : `${rem}s`;
+}
+
+/** Backend stores naive UTC timestamps; append Z so Date.parse treats them as UTC. */
+export function parseUtc(value: string | null): number | null {
+  if (!value) return null;
+  const iso = value.endsWith("Z") || value.includes("+") ? value : `${value}Z`;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : ms;
+}
+
 /** Derive a 2-letter monogram from a project/person name, e.g. "Bloom CRM" -> "BC". */
 export function monogram(name: string): string {
   return name
