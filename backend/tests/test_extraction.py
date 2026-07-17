@@ -70,3 +70,41 @@ def test_extraction_partial_failure_reraises_without_commit(db_session) -> None:
         with pytest.raises(RuntimeError):
             extract_tasks_for_meeting(db_session, meeting)
     assert db_session.query(Task).filter_by(meeting_id=meeting.id).count() == 0
+
+
+def test_project_context_block_builds_and_skips() -> None:
+    from app.llm.prompts import project_context_block
+
+    assert project_context_block("", [], [], "") == ""
+    block = project_context_block(
+        "CRM for florists.",
+        ["Bloombum", "Stripe"],
+        [{"name": "Olena", "role": "PM"}, {"name": "", "role": "x"}],
+        "As a <role>, I want <action>.",
+    )
+    assert "CRM for florists." in block
+    assert "Bloombum" in block and "Stripe" in block
+    assert "Olena (PM)" in block
+    assert "As a <role>" in block
+
+
+def test_extraction_injects_project_context(db_session) -> None:
+    from app.db.models import Project
+
+    project = db_session.get(Project, 1)
+    project.ai_context = "CRM for florists."
+    project.glossary = ["Bloombum"]
+    project.team = [{"name": "Olena", "role": "PM"}]
+    db_session.commit()
+
+    meeting = _meeting_with_transcript(db_session)
+    client = MagicMock()
+    client.chat.completions.create.return_value = ExtractionResult(tasks=[])
+    with patch("app.llm.extraction.get_client", return_value=client):
+        extract_tasks_for_meeting(db_session, meeting)
+
+    messages = client.chat.completions.create.call_args.kwargs["messages"]
+    system_texts = [m["content"] for m in messages if m["role"] == "system"]
+    assert any("CRM for florists." in t for t in system_texts)
+    assert any("Bloombum" in t for t in system_texts)
+    assert any("Olena" in t for t in system_texts)
