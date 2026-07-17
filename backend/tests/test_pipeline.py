@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from app.db.models import Meeting, MeetingStatus, TranscriptSegment
-from app.pipeline.audio import extract_audio
+from app.pipeline.audio import AudioExtractionError, extract_audio
 from app.pipeline.runner import run_pipeline_with_session
 from app.pipeline.transcribe import pick_model_size
 
@@ -16,6 +16,17 @@ def tone_wav(tmp_path_factory) -> Path:
     out = tmp_path_factory.mktemp("media") / "tone.wav"
     subprocess.run(
         ["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", str(out)],
+        check=True, capture_output=True,
+    )
+    return out
+
+
+@pytest.fixture(scope="session")
+def silent_video(tmp_path_factory) -> Path:
+    """Video-only .mov (no audio stream), like a muted screen recording."""
+    out = tmp_path_factory.mktemp("media") / "noaudio.mov"
+    subprocess.run(
+        ["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=duration=1:size=64x64:rate=10", str(out)],
         check=True, capture_output=True,
     )
     return out
@@ -34,6 +45,12 @@ def test_extract_audio_produces_16k_mono(tone_wav, tmp_path) -> None:
         check=True, capture_output=True, text=True,
     )
     assert probe.stdout.strip() == "16000,1"
+
+
+def test_extract_audio_no_audio_stream(silent_video, tmp_path) -> None:
+    with pytest.raises(AudioExtractionError, match="no audio track"):
+        extract_audio(silent_video, tmp_path / "out.wav")
+    assert not (tmp_path / "out.wav").exists()
 
 
 def _make_meeting(db, media_path: str) -> Meeting:
