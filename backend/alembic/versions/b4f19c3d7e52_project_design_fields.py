@@ -20,6 +20,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    # If a previous run was interrupted mid-batch (e.g. the dev reloader
+    # restarting the worker), SQLite's non-transactional DDL leaves an orphaned
+    # scratch table behind, which would make every retry fail with
+    # "table _alembic_tmp_projects already exists". Drop it first so the
+    # migration is self-healing.
+    op.execute("DROP TABLE IF EXISTS _alembic_tmp_projects")
     # batch mode: SQLite cannot ALTER TABLE ADD COLUMN with a non-constant
     # default (updated_at CURRENT_TIMESTAMP); batch recreates the table and
     # backfills existing rows from the server defaults.
