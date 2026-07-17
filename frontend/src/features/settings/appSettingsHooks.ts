@@ -15,3 +15,7 @@ export function usePatchAppSettings() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["app-settings"] }),
   });
 }
+
+export function useJiraTest() {
+  return useMutation({ mutationFn: api.jiraTest });
+}

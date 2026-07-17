@@ -13,6 +13,8 @@ export type TaskStatus = Task["status"];
 export type LlmTestResult = components["schemas"]["LlmTestOut"];
 export type LlmConnectResult = components["schemas"]["LlmConnectOut"];
 export type AppSettings = components["schemas"]["AppSettingsOut"];
+export type JiraTestResult = components["schemas"]["JiraTestOut"];
+export type JiraPreview = components["schemas"]["JiraPreviewOut"];
 
 export const ACTIVE_STATUSES: MeetingStatus[] = ["queued", "processing", "transcribing", "extracting"];
 
@@ -61,7 +63,9 @@ export const api = {
     }),
   patchTask: (
     id: number,
-    payload: Partial<Pick<Task, "title" | "description" | "assignee" | "priority" | "status">>,
+    payload: Partial<Pick<Task, "title" | "description" | "assignee" | "priority" | "status">> & {
+      push_to_jira?: boolean;
+    },
   ) =>
     apiFetch<Task>(`/api/tasks/${id}`, {
       method: "PATCH",
@@ -95,10 +99,18 @@ export const api = {
   llmConnect: (id: number) =>
     apiFetch<LlmConnectResult>(`/api/projects/${id}/llm-connect`, { method: "POST" }),
   getSettings: () => apiFetch<AppSettings>("/api/settings"),
-  patchSettings: (payload: { extraction_prompt?: string }) =>
+  patchSettings: (payload: {
+    extraction_prompt?: string;
+    jira_base_url?: string;
+    jira_email?: string;
+    jira_api_token?: string;
+  }) =>
     apiFetch<AppSettings>("/api/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
+  jiraTest: () => apiFetch<JiraTestResult>("/api/settings/jira-test", { method: "POST" }),
+  getJiraPreview: (taskId: number) => apiFetch<JiraPreview>(`/api/tasks/${taskId}/jira-preview`),
+  jiraPush: (taskId: number) => apiFetch<Task>(`/api/tasks/${taskId}/jira-push`, { method: "POST" }),
 };
