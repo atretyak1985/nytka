@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { CircleCheckIcon, Loader2Icon, OctagonXIcon, Sparkles, X } from "lucide-react";
 import type { Project, TeamMember } from "@/lib/client";
 import { LLM_PROVIDERS, LMSTUDIO_BASE_URL, isLocalProvider, normalizeLlmProvider } from "@/lib/design-maps";
 import { useLlmConnect, usePatchProject } from "@/features/projects/hooks";
+import { useAppSettings } from "@/features/settings/appSettingsHooks";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface FormState {
@@ -61,6 +63,8 @@ export function SettingsTab({ project }: { project: Project }) {
   const [teamDraft, setTeamDraft] = useState("");
   const patchProject = usePatchProject();
   const llmConnect = useLlmConnect();
+  const { data: appSettings } = useAppSettings();
+  const jiraConfigured = Boolean(appSettings?.jira_base_url && appSettings?.jira_token_set);
   const [connectionStatus, setConnectionStatus] = useState<{
     kind: "success" | "error";
     message: string;
@@ -387,9 +391,18 @@ export function SettingsTab({ project }: { project: Project }) {
                 placeholder="CRM"
                 className="h-8 w-[110px] rounded-bb-btn border border-bb-line bg-bb-paper px-2.5 font-mono text-xs text-bb-ink outline-none focus-visible:border-bb-burgundy"
               />
-              <span className="rounded-md bg-bb-sage-soft px-2 py-0.5 font-mono text-[9.5px] font-medium tracking-[0.06em] text-bb-sage uppercase">
-                Connected
-              </span>
+              {jiraConfigured ? (
+                <span className="rounded-md bg-bb-sage-soft px-2 py-0.5 font-mono text-[9.5px] font-medium tracking-[0.06em] text-bb-sage uppercase">
+                  Connected
+                </span>
+              ) : (
+                <Link
+                  href="/settings"
+                  className="rounded-md bg-bb-surface-2 px-2 py-0.5 font-mono text-[9.5px] font-medium tracking-[0.06em] text-bb-amber uppercase hover:underline"
+                >
+                  Set up in Settings
+                </Link>
+              )}
             </div>
           ) : (
             <p className="m-0 font-mono text-[10px] tracking-[0.08em] text-bb-muted uppercase">Disabled</p>
