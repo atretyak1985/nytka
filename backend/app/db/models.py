@@ -74,6 +74,7 @@ class Meeting(Base):
     language: Mapped[str | None] = mapped_column(String(10), default=None)
     progress: Mapped[float | None] = mapped_column(Float, default=None)
     processing_started_at: Mapped[datetime | None] = mapped_column(default=None)
+    processing_finished_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     project: Mapped[Project] = relationship(back_populates="meetings")

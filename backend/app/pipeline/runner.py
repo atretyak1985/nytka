@@ -52,6 +52,7 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
         return
     try:
         meeting.processing_started_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        meeting.processing_finished_at = None
         meeting.progress = 0.0
         _set_status(db, meeting, MeetingStatus.PROCESSING)
         wav = wav_path_for(meeting)
@@ -73,6 +74,7 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
             logger.info("meeting %s: extracted %s tasks", meeting.id, count)
 
         meeting.progress = None
+        meeting.processing_finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
         _set_status(db, meeting, MeetingStatus.DONE)
     except Exception as exc:  # noqa: BLE001 - single failure boundary for the background job
         logger.exception("pipeline failed for meeting %s", meeting_id)
@@ -83,6 +85,7 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
             msg = msg.replace(api_key, "[REDACTED]")
         meeting.status = MeetingStatus.ERROR
         meeting.error_message = msg
+        meeting.processing_finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db.commit()
 
 

@@ -41,6 +41,7 @@ class MeetingOut(BaseModel):
     language: str | None
     progress: float | None
     processing_started_at: datetime | None
+    processing_finished_at: datetime | None
     created_at: datetime
 
 
