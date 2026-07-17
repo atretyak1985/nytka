@@ -4,8 +4,8 @@ import { use, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Check } from "lucide-react";
-import { useMeeting, useRetryMeeting } from "@/features/meetings/hooks";
+import { ArrowLeft, Check, RotateCw } from "lucide-react";
+import { useMeeting, useReextractMeeting, useRetryMeeting } from "@/features/meetings/hooks";
 import { ProcessingStats } from "@/features/meetings/ProcessingStats";
 import { DeleteMeetingButton } from "@/features/meetings/DeleteMeetingButton";
 import { usePatchTask } from "@/features/tasks/hooks";
@@ -63,6 +63,7 @@ export default function MeetingDetailPage({
 
   const { data: meeting, isLoading } = useMeeting(Number(meetingId));
   const retryMeeting = useRetryMeeting();
+  const reextractMeeting = useReextractMeeting();
   const patchTask = usePatchTask();
   const transcriptRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -139,6 +140,23 @@ export default function MeetingDetailPage({
         </h1>
         <Chip chip={statusChip} className="text-[10px]" />
         <span className="flex-1" />
+        {!isActive && (
+          <button
+            type="button"
+            onClick={() =>
+              reextractMeeting.mutate(meeting.id, {
+                onSuccess: () => toast.success("Re-extracting tasks…"),
+                onError: (e) => toast.error(e.message),
+              })
+            }
+            disabled={reextractMeeting.isPending}
+            title="Re-run task extraction on this transcript"
+            className="inline-flex h-7 items-center gap-1.5 rounded-bb-btn border border-bb-line bg-transparent px-3 text-xs font-medium text-bb-ink-2 transition-colors hover:bg-bb-surface-2 hover:text-bb-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy disabled:opacity-50"
+          >
+            <RotateCw className="size-3.5" aria-hidden="true" />
+            Re-extract
+          </button>
+        )}
         <DeleteMeetingButton
           meetingId={meeting.id}
           onDeleted={() => router.push(`/projects/${projectId}?tab=meetings`)}

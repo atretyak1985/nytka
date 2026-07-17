@@ -121,6 +121,15 @@ class LlmTestOut(BaseModel):
     error: str | None = None
 
 
+class AppSettingsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    extraction_prompt: str
+
+
+class AppSettingsPatchIn(BaseModel):
+    extraction_prompt: str | None = None
+
+
 class LlmConnectOut(BaseModel):
     ok: bool
     models: list[str] = []

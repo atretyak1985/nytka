@@ -98,6 +98,39 @@ def retry_meeting(meeting_id: int, background: BackgroundTasks, db: Session = De
     return meeting
 
 
+ACTIVE_STATUSES = {
+    MeetingStatus.QUEUED,
+    MeetingStatus.PROCESSING,
+    MeetingStatus.TRANSCRIBING,
+    MeetingStatus.EXTRACTING,
+}
+
+
+@router.post("/{meeting_id}/reextract", response_model=MeetingOut)
+def reextract_meeting(meeting_id: int, background: BackgroundTasks, db: Session = Depends(get_db)) -> Meeting:
+    """Re-run task extraction on an already-processed meeting.
+
+    Drops this meeting's existing tasks and requeues the pipeline; transcription is
+    skipped (segments already exist), so only extraction re-runs — useful after tuning
+    the prompt or project AI context.
+    """
+    meeting = db.get(Meeting, meeting_id)
+    if meeting is None:
+        raise HTTPException(404, "Meeting not found")
+    if meeting.status in ACTIVE_STATUSES:
+        raise HTTPException(409, f"Meeting is still processing (status: {meeting.status})")
+
+    for task in db.scalars(select(Task).where(Task.meeting_id == meeting.id)):
+        db.delete(task)
+    meeting.status = MeetingStatus.QUEUED
+    meeting.error_message = None
+    meeting.progress = 0.0
+    db.commit()
+    db.refresh(meeting)
+    background.add_task(run_pipeline, meeting.id)
+    return meeting
+
+
 @router.delete("/{meeting_id}", status_code=204)
 def delete_meeting(meeting_id: int, db: Session = Depends(get_db)) -> None:
     meeting = db.get(Meeting, meeting_id)

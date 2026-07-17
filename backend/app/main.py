@@ -8,9 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.meetings import router as meetings_router
 from app.api.projects import router as projects_router
+from app.api.settings import router as settings_router
 from app.api.tasks import router as tasks_router
 from app.core.config import settings
-from app.db.seed import ensure_default_project
+from app.db.seed import ensure_app_settings, ensure_default_project
 from app.db.session import SessionLocal
 from app.pipeline.runner import sweep_interrupted
 
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
     settings.media_dir.mkdir(parents=True, exist_ok=True)
     with SessionLocal() as db:
         ensure_default_project(db)
+        ensure_app_settings(db)
         sweep_interrupted(db)
     yield
 
@@ -47,6 +49,7 @@ app.add_middleware(
 app.include_router(meetings_router)
 app.include_router(tasks_router)
 app.include_router(projects_router)
+app.include_router(settings_router)
 
 
 @app.get("/api/health")

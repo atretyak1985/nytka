@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Plus } from "lucide-react";
+import { LayoutGrid, Plus, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjects } from "@/features/projects/hooks";
 import { useNewProjectModal } from "@/components/modals/NewProjectModalProvider";
@@ -15,6 +15,7 @@ export function Sidebar() {
   const { open } = useNewProjectModal();
 
   const isHome = pathname === "/";
+  const isSettings = pathname === "/settings";
   const activeProjectId = pathname.startsWith("/projects/") ? pathname.split("/")[2] : null;
 
   return (
@@ -83,6 +84,20 @@ export function Sidebar() {
           })}
         </div>
       </nav>
+
+      <div className="shrink-0 border-t border-bb-line-soft p-3">
+        <Link
+          href="/settings"
+          aria-current={isSettings ? "page" : undefined}
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-[6px] px-2.5 py-2 font-mono text-[11px] uppercase tracking-[0.08em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy",
+            isSettings ? "bg-bb-burgundy text-bb-on-accent" : "text-bb-muted hover:bg-bb-surface-2",
+          )}
+        >
+          <Settings className="size-4" aria-hidden="true" />
+          <span>Settings</span>
+        </Link>
+      </div>
 
       <div className="flex shrink-0 flex-col gap-1 border-t border-bb-line-soft px-4.5 py-3.5">
         <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-bb-ink-2">

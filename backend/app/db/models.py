@@ -119,3 +119,13 @@ class Task(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     meeting: Mapped[Meeting | None] = relationship(back_populates="tasks")
+
+
+class AppSetting(Base):
+    """Global, app-wide settings (single row, id=1). Currently the base extraction prompt."""
+
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    extraction_prompt: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())

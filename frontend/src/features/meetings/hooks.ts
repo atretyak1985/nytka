@@ -57,3 +57,14 @@ export function useDeleteMeeting() {
     },
   });
 }
+
+export function useReextractMeeting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.reextractMeeting,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["meetings"] });
+      void qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+}

@@ -76,6 +76,30 @@ def test_get_meeting_media_404(client):
     assert client.get("/api/meetings/999/media").status_code == 404
 
 
+def test_reextract_clears_tasks_and_requeues(client, db_session):
+    from app.db.models import Meeting, MeetingStatus, Task
+
+    with patch("app.api.meetings.run_pipeline"):
+        mid = upload(client).json()["id"]
+    meeting = db_session.get(Meeting, mid)
+    meeting.status = MeetingStatus.DONE
+    db_session.add(Task(project_id=meeting.project_id, meeting_id=mid, title="old task"))
+    db_session.commit()
+
+    with patch("app.api.meetings.run_pipeline") as mock_run:
+        resp = client.post(f"/api/meetings/{mid}/reextract")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "queued"
+    mock_run.assert_called_once_with(mid)
+    assert db_session.query(Task).filter_by(meeting_id=mid).count() == 0
+
+
+def test_reextract_409_while_active(client):
+    with patch("app.api.meetings.run_pipeline"):
+        mid = upload(client).json()["id"]  # queued == active
+    assert client.post(f"/api/meetings/{mid}/reextract").status_code == 409
+
+
 def test_upload_rejects_oversized_file(client, monkeypatch):
     from app.core.config import settings
 

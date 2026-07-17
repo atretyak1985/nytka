@@ -3,10 +3,10 @@ import re
 
 from sqlalchemy.orm import Session
 
-from app.db.models import Meeting, Task, TaskPriority
+from app.db.models import AppSetting, Meeting, Task, TaskPriority
 from app.llm.chunking import build_chunks
 from app.llm.client import get_client, model_and_kwargs
-from app.llm.prompts import SYSTEM_PROMPT, project_context_block, user_prompt
+from app.llm.prompts import DEFAULT_SYSTEM_PROMPT, project_context_block, user_prompt
 from app.llm.schemas import ActionItem, ExtractionResult
 
 logger = logging.getLogger(__name__)
@@ -20,12 +20,17 @@ def extract_tasks_for_meeting(db: Session, meeting: Meeting) -> int:
     model, kwargs = model_and_kwargs(meeting.project)
     client = get_client(meeting.project.llm_provider)
 
-    # Per-project guidance from the Settings tab (AI context, glossary, team, task format).
+    # Base prompt: editable global setting, falling back to the built-in default.
+    settings_row = db.get(AppSetting, 1)
+    base_prompt = (settings_row.extraction_prompt.strip() if settings_row else "") or DEFAULT_SYSTEM_PROMPT
+
+    # Per-project guidance from the Settings tab (AI context, glossary, team, task format),
+    # layered on top at higher priority.
     project = meeting.project
     context_block = project_context_block(
         project.ai_context, project.glossary, project.team, project.task_format
     )
-    system_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    system_messages = [{"role": "system", "content": base_prompt}]
     if context_block:
         system_messages.append({"role": "system", "content": context_block})
 

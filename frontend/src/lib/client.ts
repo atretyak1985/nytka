@@ -12,6 +12,7 @@ export type MeetingStatus = Meeting["status"];
 export type TaskStatus = Task["status"];
 export type LlmTestResult = components["schemas"]["LlmTestOut"];
 export type LlmConnectResult = components["schemas"]["LlmConnectOut"];
+export type AppSettings = components["schemas"]["AppSettingsOut"];
 
 export const ACTIVE_STATUSES: MeetingStatus[] = ["queued", "processing", "transcribing", "extracting"];
 
@@ -25,6 +26,7 @@ export const api = {
   },
   getMeeting: (id: number) => apiFetch<MeetingDetail>(`/api/meetings/${id}`),
   retryMeeting: (id: number) => apiFetch<Meeting>(`/api/meetings/${id}/retry`, { method: "POST" }),
+  reextractMeeting: (id: number) => apiFetch<Meeting>(`/api/meetings/${id}/reextract`, { method: "POST" }),
   deleteMeeting: async (id: number): Promise<void> => {
     const res = await fetch(`${API_URL}/api/meetings/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error(await res.text());
@@ -92,4 +94,11 @@ export const api = {
   llmTest: (id: number) => apiFetch<LlmTestResult>(`/api/projects/${id}/llm-test`, { method: "POST" }),
   llmConnect: (id: number) =>
     apiFetch<LlmConnectResult>(`/api/projects/${id}/llm-connect`, { method: "POST" }),
+  getSettings: () => apiFetch<AppSettings>("/api/settings"),
+  patchSettings: (payload: { extraction_prompt?: string }) =>
+    apiFetch<AppSettings>("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
 };
