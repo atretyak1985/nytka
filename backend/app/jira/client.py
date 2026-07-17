@@ -51,17 +51,19 @@ def test_connection(base_url: str, email: str, token: str) -> dict:
 
 
 def find_user(base_url: str, email: str, token: str, query: str) -> dict | None:
-    """Best-effort account lookup for the assignee. None on no match or any error."""
+    """Best-effort account lookup for the assignee. None on no match or any error
+    (including a malformed 200 payload) — never raises, so it can't break an approve."""
     try:
         with _client(base_url, email, token) as c:
             resp = c.get("/rest/api/3/user/search", params={"query": query})
             resp.raise_for_status()
             users = resp.json()
-    except httpx.HTTPError:
+        if not isinstance(users, list) or not users:
+            return None
+        first = users[0]
+        return {"account_id": first["accountId"], "display_name": first.get("displayName", query)}
+    except (httpx.HTTPError, KeyError, TypeError, ValueError):
         return None
-    if not users:
-        return None
-    return {"account_id": users[0]["accountId"], "display_name": users[0].get("displayName", query)}
 
 
 def create_issue(base_url: str, email: str, token: str, fields: dict) -> str:

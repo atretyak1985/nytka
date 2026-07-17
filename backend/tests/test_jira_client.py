@@ -75,6 +75,16 @@ def test_find_user_no_match(monkeypatch):
     assert jira_client.find_user("https://acme.atlassian.net", "a@b.c", "tok", "Nobody") is None
 
 
+def test_find_user_malformed_payload_missing_account_id(monkeypatch):
+    patch_client(monkeypatch, lambda request: httpx.Response(200, json=[{"displayName": "No Id"}]))
+    assert jira_client.find_user("https://acme.atlassian.net", "a@b.c", "tok", "X") is None
+
+
+def test_find_user_non_list_payload(monkeypatch):
+    patch_client(monkeypatch, lambda request: httpx.Response(200, json={"unexpected": "shape"}))
+    assert jira_client.find_user("https://acme.atlassian.net", "a@b.c", "tok", "X") is None
+
+
 def test_create_issue_returns_key(monkeypatch):
     def handler(request):
         assert request.url.path == "/rest/api/3/issue"
