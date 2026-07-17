@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useAppSettings, usePatchAppSettings } from "@/features/settings/appSettingsHooks";
+import { JiraSettings } from "@/features/settings/JiraSettings";
 
 export default function GlobalSettingsPage() {
   const { data: settings, isLoading } = useAppSettings();
@@ -77,6 +78,8 @@ export default function GlobalSettingsPage() {
           </button>
         </div>
       </section>
+
+      {settings && <JiraSettings key={settings.jira_base_url + settings.jira_email} settings={settings} />}
     </div>
   );
 }
