@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+import httpx
+
 
 def test_list_projects_has_default(client):
     projects = client.get("/api/projects").json()
@@ -91,3 +93,70 @@ def test_llm_test_failure_reported(client):
     with patch("app.api.projects.get_client", return_value=fake_client):
         resp = client.post(f"/api/projects/{project_id}/llm-test")
     assert resp.json()["ok"] is False and "connection refused" in resp.json()["error"]
+
+
+def _models_response(model_ids: list[str]) -> MagicMock:
+    """Fake httpx.Response for LM Studio's GET /v1/models."""
+    response = MagicMock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {"object": "list", "data": [{"id": m, "object": "model"} for m in model_ids]}
+    return response
+
+
+def test_llm_connect_detects_models(client):
+    project_id = client.get("/api/projects").json()[0]["id"]
+    fake = _models_response(["qwen2.5-7b-instruct", "llama-3.1-8b"])
+    with patch("app.api.projects.httpx.get", return_value=fake) as mock_get:
+        body = client.post(f"/api/projects/{project_id}/llm-connect").json()
+    assert body == {
+        "ok": True,
+        "models": ["qwen2.5-7b-instruct", "llama-3.1-8b"],
+        "model": "qwen2.5-7b-instruct",
+        "error": None,
+    }
+    # default project base URL is the IPv4 loopback LM Studio endpoint
+    mock_get.assert_called_once_with("http://127.0.0.1:1234/v1/models", timeout=4.0, headers=None)
+
+
+def test_llm_connect_appends_v1_to_bare_base_url(client):
+    project_id = client.get("/api/projects").json()[0]["id"]
+    client.patch(f"/api/projects/{project_id}", json={"llm_base_url": "http://127.0.0.1:1234"})
+    with patch("app.api.projects.httpx.get", return_value=_models_response(["m"])) as mock_get:
+        client.post(f"/api/projects/{project_id}/llm-connect")
+    assert mock_get.call_args.args[0] == "http://127.0.0.1:1234/v1/models"
+
+
+def test_llm_connect_reachable_but_no_model_loaded(client):
+    project_id = client.get("/api/projects").json()[0]["id"]
+    with patch("app.api.projects.httpx.get", return_value=_models_response([])):
+        body = client.post(f"/api/projects/{project_id}/llm-connect").json()
+    assert body["ok"] is True and body["models"] == [] and body["model"] is None
+
+
+def test_llm_connect_failure_reported(client):
+    project_id = client.get("/api/projects").json()[0]["id"]
+    with patch("app.api.projects.httpx.get", side_effect=httpx.ConnectError("All connection attempts failed")):
+        body = client.post(f"/api/projects/{project_id}/llm-connect").json()
+    assert body["ok"] is False and "connection attempts" in body["error"] and body["models"] == []
+
+
+def test_llm_connect_rejects_cloud_provider(client):
+    project_id = client.get("/api/projects").json()[0]["id"]
+    client.patch(f"/api/projects/{project_id}", json={"llm_provider": "anthropic"})
+    with patch("app.api.projects.httpx.get") as mock_get:
+        body = client.post(f"/api/projects/{project_id}/llm-connect").json()
+    assert body["ok"] is False and "local providers" in body["error"]
+    mock_get.assert_not_called()
+
+
+def test_llm_connect_redacts_api_key(client):
+    project_id = client.get("/api/projects").json()[0]["id"]
+    client.patch(f"/api/projects/{project_id}", json={"llm_api_key": "sk-secret-123"})
+    with patch("app.api.projects.httpx.get", side_effect=RuntimeError("boom sk-secret-123")):
+        body = client.post(f"/api/projects/{project_id}/llm-connect").json()
+    assert body["ok"] is False
+    assert "sk-secret-123" not in body["error"] and "[REDACTED]" in body["error"]
+
+
+def test_llm_connect_missing_project_404(client):
+    assert client.post("/api/projects/99999/llm-connect").status_code == 404

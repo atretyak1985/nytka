@@ -23,12 +23,12 @@ The LLM used for task extraction is configured **per project** (Settings page or
 
 | Provider | Uses | Notes |
 |---|---|---|
-| `lmstudio` (default) | `llm_base_url` (default `http://localhost:1234/v1`) + `llm_model` | No API key needed. Load an instruct model in LM Studio and start the local server. Structured output uses JSON-schema mode. |
+| `lmstudio` (default) | `llm_base_url` (default `http://127.0.0.1:1234/v1` — IPv4 on purpose, `localhost` can resolve to `::1`) + `llm_model` | No API key needed. Load an instruct model in LM Studio and start the local server; the Settings UI pins the URL and auto-detects `llm_model` on "Test connection". Structured output uses JSON-schema mode. |
 | `ollama` | `llm_base_url` (typically `http://localhost:11434/v1`) + `llm_model` | OpenAI-compatible endpoint; no key. |
 | `anthropic` | `llm_api_key` + `llm_model` (e.g. `claude-sonnet-4-6`) | Cloud — transcript text leaves the machine. |
 | `openai` | `llm_api_key` + `llm_model` | Cloud — same caveat. |
 
-Use **Test connection** on the Settings page (or `POST /api/projects/{id}/llm-test`) after changing config — it performs a 1-token completion and reports the exact error on failure.
+Use **Test connection** on the Settings page after changing config — it saves the form, probes the server's `/v1/models` endpoint (`POST /api/projects/{id}/llm-connect`), auto-fills the detected model, and reports the exact error on failure. `POST /api/projects/{id}/llm-test` (a 1-token completion round-trip) remains available for end-to-end checks.
 
 ### Model recommendations
 

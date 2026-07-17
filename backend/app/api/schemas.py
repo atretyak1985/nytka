@@ -118,3 +118,10 @@ class ProjectPatchIn(BaseModel):
 class LlmTestOut(BaseModel):
     ok: bool
     error: str | None = None
+
+
+class LlmConnectOut(BaseModel):
+    ok: bool
+    models: list[str] = []
+    model: str | None = None
+    error: str | None = None

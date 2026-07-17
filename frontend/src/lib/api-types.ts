@@ -144,6 +144,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/llm-connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Llm Connect
+         * @description Probe the project's local LLM server and report the models it has loaded.
+         *
+         *     Unlike ``llm-test`` (a full chat round-trip through the LLM), this pings the
+         *     OpenAI-compatible ``GET /v1/models`` endpoint with a short timeout so the UI
+         *     can show an immediate reachability status and auto-fill the detected model.
+         */
+        post: operations["llm_connect_api_projects__project_id__llm_connect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -178,6 +202,20 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** LlmConnectOut */
+        LlmConnectOut: {
+            /** Ok */
+            ok: boolean;
+            /**
+             * Models
+             * @default []
+             */
+            models: string[];
+            /** Model */
+            model?: string | null;
+            /** Error */
+            error?: string | null;
         };
         /** LlmTestOut */
         LlmTestOut: {
@@ -806,6 +844,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LlmTestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    llm_connect_api_projects__project_id__llm_connect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmConnectOut"];
                 };
             };
             /** @description Validation Error */

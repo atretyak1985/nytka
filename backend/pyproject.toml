@@ -8,6 +8,7 @@ dependencies = [
     "alembic>=1.18.5",
     "fastapi[standard]>=0.139.1",
     "faster-whisper>=1.2.1",
+    "httpx>=0.28.1",
     "instructor>=1.15.4",
     "litellm>=1.92.0",
     "orjson>=3.11.9",

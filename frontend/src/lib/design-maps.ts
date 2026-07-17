@@ -89,9 +89,36 @@ export function relativeDay(iso: string): string {
 
 export const PROJECT_SWATCHES = ["#7a0d38", "#a8254e", "#5c7b5c", "#2f6b8e", "#5a4fcf"] as const;
 
-export const LLM_PROVIDERS = ["LM Studio", "Ollama", "Anthropic", "OpenAI"] as const;
+export type LlmProviderValue = "lmstudio" | "ollama" | "anthropic" | "openai";
+
+export interface LlmProviderOption {
+  value: LlmProviderValue;
+  label: string;
+  /** Only LM Studio is wired up end-to-end today; the rest are shown as planned. */
+  enabled: boolean;
+}
+
+/** Providers shown in the settings dropdown. `value` is the canonical id the backend
+ *  routes on (see backend `app/llm/client.py::model_and_kwargs`) — never the label. */
+export const LLM_PROVIDERS: readonly LlmProviderOption[] = [
+  { value: "lmstudio", label: "LM Studio", enabled: true },
+  { value: "ollama", label: "Ollama", enabled: false },
+  { value: "anthropic", label: "Anthropic", enabled: false },
+  { value: "openai", label: "OpenAI", enabled: false },
+];
+
+/** LM Studio's OpenAI-compatible endpoint. IPv4 loopback on purpose: `localhost`
+ *  resolves to `::1` first on macOS while LM Studio listens on IPv4 only. */
+export const LMSTUDIO_BASE_URL = "http://127.0.0.1:1234/v1";
+
+/** Map any stored provider value — canonical id or legacy label ("LM Studio") — to canonical. */
+export function normalizeLlmProvider(provider: string): LlmProviderValue {
+  const compact = provider.toLowerCase().replace(/\s+/g, "");
+  return LLM_PROVIDERS.find((p) => p.value === compact)?.value ?? "lmstudio";
+}
 
 /** True when the provider keeps all data on-device (drives the sage/sky locality chip). */
 export function isLocalProvider(provider: string): boolean {
-  return provider === "LM Studio" || provider === "Ollama" || provider.toLowerCase() === "lmstudio" || provider.toLowerCase() === "ollama";
+  const value = normalizeLlmProvider(provider);
+  return value === "lmstudio" || value === "ollama";
 }

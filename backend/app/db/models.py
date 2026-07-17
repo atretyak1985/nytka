@@ -47,7 +47,9 @@ class Project(Base):
     jira_key: Mapped[str] = mapped_column(String(50), default="")
     llm_provider: Mapped[str] = mapped_column(String(50), default="lmstudio")
     llm_model: Mapped[str] = mapped_column(String(200), default="local-model")
-    llm_base_url: Mapped[str | None] = mapped_column(String(500), default="http://localhost:1234/v1")
+    # IPv4 loopback on purpose: `localhost` resolves to `::1` first on macOS while
+    # LM Studio listens on IPv4 only (same bug class as frontend/src/lib/api.ts).
+    llm_base_url: Mapped[str | None] = mapped_column(String(500), default="http://127.0.0.1:1234/v1")
     llm_api_key: Mapped[str | None] = mapped_column(String(500), default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())

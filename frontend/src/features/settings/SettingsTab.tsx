@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Sparkles, X } from "lucide-react";
+import { CircleCheckIcon, Loader2Icon, OctagonXIcon, Sparkles, X } from "lucide-react";
 import type { Project, TeamMember } from "@/lib/client";
-import { LLM_PROVIDERS, isLocalProvider } from "@/lib/design-maps";
-import { usePatchProject } from "@/features/projects/hooks";
+import { LLM_PROVIDERS, LMSTUDIO_BASE_URL, isLocalProvider, normalizeLlmProvider } from "@/lib/design-maps";
+import { useLlmConnect, usePatchProject } from "@/features/projects/hooks";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface FormState {
   aiContext: string;
@@ -15,21 +16,42 @@ interface FormState {
   team: TeamMember[];
   llmProvider: string;
   llmModel: string;
+  llmBaseUrl: string;
   jiraEnabled: boolean;
   jiraKey: string;
 }
 
 function toFormState(project: Project): FormState {
+  const llmProvider = normalizeLlmProvider(project.llm_provider);
   return {
     aiContext: project.ai_context,
     taskPrefix: project.task_prefix,
     taskFormat: project.task_format,
     glossary: project.glossary,
     team: project.team,
-    llmProvider: project.llm_provider,
+    llmProvider,
     llmModel: project.llm_model,
+    // LM Studio always talks to the fixed IPv4 loopback endpoint (`localhost` resolves
+    // to `::1` first on macOS); this also heals legacy `localhost` rows on next save.
+    llmBaseUrl: llmProvider === "lmstudio" ? LMSTUDIO_BASE_URL : (project.llm_base_url ?? ""),
     jiraEnabled: project.jira_enabled,
     jiraKey: project.jira_key,
+  };
+}
+
+/** Full PATCH payload — Save and Test-connection persist the same complete form. */
+function toPatchPayload(form: FormState) {
+  return {
+    ai_context: form.aiContext,
+    task_prefix: form.taskPrefix,
+    task_format: form.taskFormat,
+    glossary: form.glossary,
+    team: form.team,
+    llm_provider: form.llmProvider,
+    llm_model: form.llmModel,
+    llm_base_url: form.llmBaseUrl || null,
+    jira_enabled: form.jiraEnabled,
+    jira_key: form.jiraKey,
   };
 }
 
@@ -38,6 +60,12 @@ export function SettingsTab({ project }: { project: Project }) {
   const [glossaryDraft, setGlossaryDraft] = useState("");
   const [teamDraft, setTeamDraft] = useState("");
   const patchProject = usePatchProject();
+  const llmConnect = useLlmConnect();
+  const [connectionStatus, setConnectionStatus] = useState<{
+    kind: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [testingConnection, setTestingConnection] = useState(false);
 
   // Re-sync local form state when the underlying project changes from elsewhere (e.g. after
   // save). Adjusting state during render is React's recommended alternative to a syncing effect.
@@ -49,23 +77,41 @@ export function SettingsTab({ project }: { project: Project }) {
 
   const handleSave = () => {
     patchProject.mutate(
-      {
-        id: project.id,
-        ai_context: form.aiContext,
-        task_prefix: form.taskPrefix,
-        task_format: form.taskFormat,
-        glossary: form.glossary,
-        team: form.team,
-        llm_provider: form.llmProvider,
-        llm_model: form.llmModel,
-        jira_enabled: form.jiraEnabled,
-        jira_key: form.jiraKey,
-      },
+      { id: project.id, ...toPatchPayload(form) },
       {
         onSuccess: () => toast.success("Settings saved"),
         onError: (e) => toast.error(e.message),
       },
     );
+  };
+
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setConnectionStatus(null);
+    try {
+      // llm-connect probes the STORED project config, so persist the form first.
+      // Sending the complete payload (not a partial one) matters: the form re-syncs
+      // from the refetched project after any PATCH, which would wipe unsaved edits.
+      await patchProject.mutateAsync({ id: project.id, ...toPatchPayload(form) });
+      const result = await llmConnect.mutateAsync(project.id);
+      if (!result.ok) {
+        setConnectionStatus({ kind: "error", message: result.error ?? "Connection failed" });
+        return;
+      }
+      const detected = result.model ?? null;
+      if (detected) {
+        setForm((f) => ({ ...f, llmModel: detected }));
+        await patchProject.mutateAsync({ id: project.id, llm_model: detected });
+      }
+      setConnectionStatus({
+        kind: "success",
+        message: detected ? `Connected · ${detected}` : "Connected · no model loaded in LM Studio",
+      });
+    } catch (e) {
+      setConnectionStatus({ kind: "error", message: e instanceof Error ? e.message : "Connection failed" });
+    } finally {
+      setTestingConnection(false);
+    }
   };
 
   const addGlossaryTerm = () => {
@@ -208,23 +254,88 @@ export function SettingsTab({ project }: { project: Project }) {
           <h3 className="m-0 mb-1 text-sm font-semibold text-bb-ink">LLM model</h3>
           <p className="m-0 mb-3 text-xs text-bb-muted">Provider and model used for task extraction in this project.</p>
           <div className="mb-3 flex gap-2.5">
-            <select
+            <Select
               value={form.llmProvider}
-              onChange={(e) => setForm((f) => ({ ...f, llmProvider: e.target.value }))}
-              className="h-[34px] flex-1 rounded-bb-btn border border-bb-line bg-bb-paper px-2.5 text-[13px] text-bb-ink outline-none focus-visible:border-bb-burgundy"
+              onValueChange={(value) => {
+                if (typeof value !== "string") return;
+                const llmProvider = normalizeLlmProvider(value);
+                setConnectionStatus(null);
+                setForm((f) => ({
+                  ...f,
+                  llmProvider,
+                  llmBaseUrl: llmProvider === "lmstudio" ? LMSTUDIO_BASE_URL : f.llmBaseUrl,
+                }));
+              }}
             >
-              {LLM_PROVIDERS.map((provider) => (
-                <option key={provider} value={provider}>
-                  {provider}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                aria-label="LLM provider"
+                className="h-8 w-full flex-1 bg-bb-paper px-2.5 text-[13px] text-bb-ink hover:bg-bb-surface-2 dark:bg-bb-paper dark:hover:bg-bb-surface-2"
+              >
+                <SelectValue>
+                  {(value: string | null) => LLM_PROVIDERS.find((p) => p.value === value)?.label ?? "Provider"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {LLM_PROVIDERS.map((provider) => (
+                  <SelectItem
+                    key={provider.value}
+                    value={provider.value}
+                    disabled={!provider.enabled}
+                    className="text-[13px]"
+                  >
+                    {provider.label}
+                    {!provider.enabled && (
+                      <span className="rounded-bb-chip bg-bb-surface-2 px-1.5 py-px font-mono text-[9px] tracking-[0.08em] text-bb-muted uppercase">
+                        soon
+                      </span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <input
               value={form.llmModel}
               onChange={(e) => setForm((f) => ({ ...f, llmModel: e.target.value }))}
-              placeholder="Model"
-              className="h-[34px] flex-[1.2] rounded-bb-btn border border-bb-line bg-bb-paper px-2.5 font-mono text-xs text-bb-ink outline-none focus-visible:border-bb-burgundy"
+              readOnly={local}
+              aria-label="Model"
+              placeholder={local ? "Detected from LM Studio on connect" : "Model"}
+              className={`h-8 flex-[1.2] rounded-bb-btn border border-bb-line bg-bb-paper px-2.5 font-mono text-xs outline-none focus-visible:border-bb-burgundy ${
+                local ? "cursor-default text-bb-ink-2" : "text-bb-ink"
+              }`}
             />
+          </div>
+          <div className="mb-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleTestConnection}
+              disabled={testingConnection}
+              className="flex h-8 shrink-0 items-center rounded-bb-btn border border-bb-line bg-bb-surface px-3 text-xs font-medium text-bb-ink transition-colors hover:bg-bb-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Test connection
+            </button>
+            <span role="status" aria-live="polite" className="flex min-w-0 items-center gap-1.5 text-xs">
+              {testingConnection ? (
+                <>
+                  <Loader2Icon className="size-3.5 shrink-0 animate-spin text-bb-muted" aria-hidden="true" />
+                  <span className="text-bb-muted">Testing connection…</span>
+                </>
+              ) : connectionStatus ? (
+                <>
+                  {connectionStatus.kind === "success" ? (
+                    <CircleCheckIcon className="size-3.5 shrink-0 text-bb-sage" aria-hidden="true" />
+                  ) : (
+                    <OctagonXIcon className="size-3.5 shrink-0 text-bb-danger" aria-hidden="true" />
+                  )}
+                  <span
+                    className={`min-w-0 break-words ${
+                      connectionStatus.kind === "success" ? "text-bb-sage" : "text-bb-danger"
+                    }`}
+                  >
+                    {connectionStatus.message}
+                  </span>
+                </>
+              ) : null}
+            </span>
           </div>
           <span
             className={`inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.08em] uppercase ${local ? "text-bb-sage" : "text-bb-sky"}`}

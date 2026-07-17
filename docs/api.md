@@ -50,6 +50,7 @@ rejected ──▶ draft
 | GET | `/api/projects` | List projects. `llm_api_key` is **never** included in responses. |
 | PATCH | `/api/projects/{id}` | Partial update: `name, llm_provider, llm_model, llm_base_url, llm_api_key`. Explicit `null` for `name/llm_provider/llm_model` → **422**. |
 | POST | `/api/projects/{id}/llm-test` | Fires a 1-token test completion with the project's LLM config. Returns `{ok: true}` or `{ok: false, error}` — never raises. API key values are redacted from `error`. |
+| POST | `/api/projects/{id}/llm-connect` | Probes the local provider's OpenAI-compatible `GET /v1/models` with a 4s timeout. Returns `{ok, models, model, error}` — never raises; API keys are redacted from `error`. Local providers (`lmstudio`/`ollama`) only. Backs Settings → "Test connection" and auto-detects the loaded model. |
 
 LLM provider mapping (see [configuration](configuration.md)): `lmstudio`/`ollama` use `llm_base_url` (OpenAI-compatible endpoints, no key required); `anthropic`/`openai` use `llm_api_key`.
 

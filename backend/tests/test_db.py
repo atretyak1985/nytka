@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
-from app.db.models import Meeting, MeetingStatus, Project, Task, TaskStatus, TranscriptSegment
+from app.db.models import Meeting, MeetingStatus, Task, TaskStatus, TranscriptSegment
 from app.db.seed import ensure_default_project
 
 
@@ -16,7 +16,7 @@ def test_default_project_seeded() -> None:
     with make_session() as db:
         project = ensure_default_project(db)
         assert project.name == "My Project"
-        assert project.llm_base_url == "http://localhost:1234/v1"
+        assert project.llm_base_url == "http://127.0.0.1:1234/v1"
         # idempotent
         again = ensure_default_project(db)
         assert again.id == project.id

@@ -34,6 +34,11 @@ export function useLlmTest() {
   return useMutation({ mutationFn: api.llmTest });
 }
 
+/** Probe the project's local LLM server (LM Studio/Ollama) and detect loaded models. */
+export function useLlmConnect() {
+  return useMutation({ mutationFn: api.llmConnect });
+}
+
 /** Count of draft (to-review) tasks — used for sidebar/tab badges. */
 export function draftCount(tasks: { status: string }[]): number {
   return tasks.filter((t) => t.status === "draft").length;

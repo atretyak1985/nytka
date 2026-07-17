@@ -11,6 +11,7 @@ export type TeamMember = components["schemas"]["TeamMember"];
 export type MeetingStatus = Meeting["status"];
 export type TaskStatus = Task["status"];
 export type LlmTestResult = components["schemas"]["LlmTestOut"];
+export type LlmConnectResult = components["schemas"]["LlmConnectOut"];
 
 export const ACTIVE_STATUSES: MeetingStatus[] = ["queued", "processing", "transcribing", "extracting"];
 
@@ -85,4 +86,6 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   llmTest: (id: number) => apiFetch<LlmTestResult>(`/api/projects/${id}/llm-test`, { method: "POST" }),
+  llmConnect: (id: number) =>
+    apiFetch<LlmConnectResult>(`/api/projects/${id}/llm-connect`, { method: "POST" }),
 };
