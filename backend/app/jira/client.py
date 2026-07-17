@@ -26,7 +26,7 @@ def _client(base_url: str, email: str, token: str) -> httpx.Client:
 
 def text_to_adf(text: str) -> dict:
     """Plain text -> Atlassian Document Format; blank lines split paragraphs."""
-    paragraphs = [p.strip() for p in text.split("\n\n")] or [""]
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()] or [""]
     return {
         "type": "doc",
         "version": 1,

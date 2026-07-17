@@ -118,3 +118,25 @@ def test_create_issue_raises_jira_error_on_failure(monkeypatch):
             "https://acme.atlassian.net", "a@b.c", "tok",
             {"project": {"key": "CRM"}, "summary": "S", "issuetype": {"name": "Task"}},
         )
+
+
+def test_text_to_adf_drops_trailing_empty_paragraphs():
+    adf = jira_client.text_to_adf("only\n\n\n")
+    texts = [p["content"][0]["text"] for p in adf["content"]]
+    assert texts == ["only"]
+
+
+def test_create_issue_400_already_minimal_does_not_retry(monkeypatch):
+    calls = []
+
+    def handler(request):
+        calls.append(request.read())
+        return httpx.Response(400, json={"errors": {"project": "bad"}})
+
+    patch_client(monkeypatch, handler)
+    with pytest.raises(jira_client.JiraError):
+        jira_client.create_issue(
+            "https://acme.atlassian.net", "a@b.c", "tok",
+            {"project": {"key": "CRM"}, "summary": "S", "issuetype": {"name": "Task"}},
+        )
+    assert len(calls) == 1  # no retry when already minimal
