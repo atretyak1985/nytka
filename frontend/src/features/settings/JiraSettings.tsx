@@ -49,7 +49,7 @@ export function JiraSettings({ settings }: { settings: AppSettings }) {
       const result = await jiraTest.mutateAsync();
       setStatus(
         result.ok
-          ? { kind: "success", message: `Connected · ${result.account_name}` }
+          ? { kind: "success", message: result.account_name ? `Connected · ${result.account_name}` : "Connected" }
           : { kind: "error", message: result.error ?? "Connection failed" },
       );
       if (result.ok) setForm((f) => ({ ...f, token: "" }));

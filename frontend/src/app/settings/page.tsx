@@ -79,7 +79,7 @@ export default function GlobalSettingsPage() {
         </div>
       </section>
 
-      {settings && <JiraSettings key={settings.jira_base_url + settings.jira_email} settings={settings} />}
+      {settings && <JiraSettings key={`${settings.jira_base_url}|${settings.jira_email}`} settings={settings} />}
     </div>
   );
 }
