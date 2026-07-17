@@ -102,7 +102,8 @@ export interface paths {
         /** List Projects */
         get: operations["list_projects_api_projects_get"];
         put?: never;
-        post?: never;
+        /** Create Project */
+        post: operations["create_project_api_projects_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -170,6 +171,8 @@ export interface components {
             file: string;
             /** Title */
             title?: string | null;
+            /** Project Id */
+            project_id?: number | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -246,23 +249,84 @@ export interface components {
          * @enum {string}
          */
         MeetingStatus: "queued" | "processing" | "transcribing" | "extracting" | "done" | "error";
+        /** ProjectCreateIn */
+        ProjectCreateIn: {
+            /** Name */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Color
+             * @default #7a0d38
+             */
+            color: string;
+        };
         /** ProjectOut */
         ProjectOut: {
             /** Id */
             id: number;
             /** Name */
             name: string;
+            /** Color */
+            color: string;
+            /** Description */
+            description: string;
+            /** Ai Context */
+            ai_context: string;
+            /** Task Prefix */
+            task_prefix: string;
+            /** Task Format */
+            task_format: string;
+            /** Glossary */
+            glossary: string[];
+            /** Team */
+            team: components["schemas"]["TeamMember"][];
+            /** Jira Enabled */
+            jira_enabled: boolean;
+            /** Jira Key */
+            jira_key: string;
             /** Llm Provider */
             llm_provider: string;
             /** Llm Model */
             llm_model: string;
             /** Llm Base Url */
             llm_base_url: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** ProjectPatchIn */
         ProjectPatchIn: {
             /** Name */
             name?: string | null;
+            /** Color */
+            color?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Ai Context */
+            ai_context?: string | null;
+            /** Task Prefix */
+            task_prefix?: string | null;
+            /** Task Format */
+            task_format?: string | null;
+            /** Glossary */
+            glossary?: string[] | null;
+            /** Team */
+            team?: components["schemas"]["TeamMember"][] | null;
+            /** Jira Enabled */
+            jira_enabled?: boolean | null;
+            /** Jira Key */
+            jira_key?: string | null;
             /** Llm Provider */
             llm_provider?: string | null;
             /** Llm Model */
@@ -351,6 +415,13 @@ export interface components {
          * @enum {string}
          */
         TaskStatus: "draft" | "approved" | "done" | "rejected";
+        /** TeamMember */
+        TeamMember: {
+            /** Name */
+            name: string;
+            /** Role */
+            role: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -375,7 +446,9 @@ export type $defs = Record<string, never>;
 export interface operations {
     list_meetings_api_meetings_get: {
         parameters: {
-            query?: never;
+            query?: {
+                project_id?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -389,6 +462,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeetingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -634,6 +716,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectOut"][];
+                };
+            };
+        };
+    };
+    create_project_api_projects_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

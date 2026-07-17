@@ -1,23 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { AppNav } from "@/components/AppNav";
+import { AppShell } from "@/components/shell/AppShell";
 import { Toaster } from "@/components/ui/sonner";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "Nytka — AI Business Analyst",
-  description: "Meeting video to transcript to tasks, locally.",
+  title: "Nytka — AI meeting analyst",
+  description: "Upload a meeting recording, get a transcript and AI-drafted tasks you review and approve.",
 };
 
 export default function RootLayout({
@@ -26,14 +15,32 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        {/*
+          Nytka v2 fonts, loaded via a linked stylesheet rather than
+          `next/font/google` (which causes Next.js 16 prerender failures here).
+          Instrument Serif is the display/wordmark serif (and its italic accent),
+          Space Grotesk is the UI body face, IBM Plex Mono is used for eyebrows,
+          labels and badges (uppercase + tracked, see globals.css).
+        */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+        />
+        <style>{`
+          :root {
+            --font-display-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+            --font-body-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+            --font-mono-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+          }
+        `}</style>
+      </head>
+      <body className="h-full antialiased">
         <Providers>
-          <AppNav />
-          {children}
+          <AppShell>{children}</AppShell>
           <Toaster />
         </Providers>
       </body>

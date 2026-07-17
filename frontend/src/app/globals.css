@@ -2,14 +2,151 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+/* ============================================================
+ * Nytka v2 design tokens — ported from
+ * nytka-design/project/Nytka v2.dc.html (--ny-* palette).
+ * Dark-first: `:root` holds the dark theme; `[data-theme="light"]`
+ * overrides for light. The legacy `--bb-*` names are kept as
+ * semantic aliases onto the --ny-* palette so existing components
+ * re-theme without edits. next-themes sets data-theme on <html>.
+ * ============================================================ */
+
+:root,
+[data-theme="dark"] {
+  --ny-bg: #0d0f12;
+  --ny-rail: #0a0c0f;
+  --ny-panel: #14171c;
+  --ny-panel-2: #1b2026;
+  --ny-line: #252b33;
+  --ny-line-soft: #1d222a;
+  --ny-ink: #edeff2;
+  --ny-ink-2: #a9b1bc;
+  --ny-muted: #697280;
+
+  --ny-lime: #a3c585;
+  --ny-lime-soft: rgba(163, 197, 133, 0.12);
+  --ny-lime-t: #a3c585; /* readable lime text */
+  --ny-lime-th: #bdd9a5; /* lime text hover */
+
+  --ny-amber: #f0b84c;
+  --ny-amber-soft: rgba(240, 184, 76, 0.12);
+  --ny-green: #5fd08a;
+  --ny-green-soft: rgba(95, 208, 138, 0.12);
+  --ny-red: #f26d6d;
+  --ny-red-soft: rgba(242, 109, 109, 0.12);
+  --ny-blue: #6fb4f5;
+  --ny-blue-soft: rgba(111, 180, 245, 0.12);
+  --ny-violet: #a78bfa;
+  --ny-violet-soft: rgba(167, 139, 250, 0.12);
+  --ny-pink: #f09acf;
+
+  --ny-topbar: rgba(13, 15, 18, 0.85);
+  --ny-knob: #0d0f12;
+  --ny-on-accent: #0d0f12; /* text on lime fills */
+  --ny-pulse: rgba(163, 197, 133, 0.35);
+}
+
+[data-theme="light"] {
+  --ny-bg: #f3f3ed;
+  --ny-rail: #ebece4;
+  --ny-panel: #ffffff;
+  --ny-panel-2: #eeefe6;
+  --ny-line: #dbdcd0;
+  --ny-line-soft: #e7e8de;
+  --ny-ink: #1a1d14;
+  --ny-ink-2: #494e40;
+  --ny-muted: #878b7c;
+
+  --ny-lime: #a3c585;
+  --ny-lime-soft: rgba(96, 138, 60, 0.14);
+  --ny-lime-t: #4e7a2b;
+  --ny-lime-th: #3c6120;
+
+  --ny-amber: #a87508;
+  --ny-amber-soft: rgba(168, 117, 8, 0.12);
+  --ny-green: #25804c;
+  --ny-green-soft: rgba(37, 128, 76, 0.12);
+  --ny-red: #c23d3d;
+  --ny-red-soft: rgba(194, 61, 61, 0.1);
+  --ny-blue: #2a6aae;
+  --ny-blue-soft: rgba(42, 106, 174, 0.12);
+  --ny-violet: #6e4dd4;
+  --ny-violet-soft: rgba(110, 77, 212, 0.12);
+  --ny-pink: #b34a8f;
+
+  --ny-topbar: rgba(243, 243, 237, 0.85);
+  --ny-knob: #ffffff;
+  --ny-on-accent: #0d0f12;
+  --ny-pulse: rgba(96, 138, 60, 0.3);
+}
+
+/* ---- Legacy --bb-* aliases mapped onto the --ny-* palette ---- */
+:root {
+  /* Accent family (was wine/burgundy) → lime */
+  --bb-wine: var(--ny-lime-th);
+  --bb-burgundy: var(--ny-lime);
+  --bb-brand: var(--ny-lime-t);
+  --bb-rose-deep: var(--ny-pink);
+  --bb-blush: var(--ny-lime-t);
+  --bb-brand-soft: var(--ny-lime-soft);
+
+  /* Surfaces */
+  --bb-paper: var(--ny-bg);
+  --bb-surface: var(--ny-panel);
+  --bb-surface-2: var(--ny-panel-2);
+
+  /* Ink */
+  --bb-ink: var(--ny-ink);
+  --bb-ink-2: var(--ny-ink-2);
+  --bb-muted: var(--ny-muted);
+
+  /* Hairlines */
+  --bb-line: var(--ny-line);
+  --bb-line-soft: var(--ny-line-soft);
+
+  /* Status / semantic */
+  --bb-sage: var(--ny-green);
+  --bb-sage-soft: var(--ny-green-soft);
+  --bb-amber: var(--ny-amber);
+  --bb-amber-soft: var(--ny-amber-soft);
+  --bb-sky: var(--ny-blue);
+  --bb-sky-soft: var(--ny-blue-soft);
+  --bb-violet: var(--ny-violet);
+  --bb-violet-soft: var(--ny-violet-soft);
+  --bb-danger: var(--ny-red);
+  --bb-danger-soft: var(--ny-red-soft);
+
+  /* On-accent text (lime fills use near-black) */
+  --bb-on-accent: var(--ny-on-accent);
+
+  /* Shadows / motion */
+  --shadow-pop: 0 24px 64px rgba(0, 0, 0, 0.5);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Radii — v2 tightened these */
+  --radius-chip: 5px;
+  --radius-btn: 7px;
+  --radius-frame: 10px;
+  --radius-frame-lg: 12px;
+
+  /* Layout */
+  --sidebar-w: 240px;
+  --header-h: 64px;
+
+  /* Fonts (families bound in layout.tsx) */
+  --font-display: var(--font-display-family), Georgia, "Times New Roman", serif;
+  --font-ui: var(--font-body-family), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-mono-family), ui-monospace, Menlo, monospace;
+}
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,75 +183,125 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ---- Design tokens exposed as Tailwind utilities ---------- */
+  --color-bb-wine: var(--bb-wine);
+  --color-bb-burgundy: var(--bb-burgundy);
+  --color-bb-brand: var(--bb-brand);
+  --color-bb-rose-deep: var(--bb-rose-deep);
+  --color-bb-blush: var(--bb-blush);
+  --color-bb-brand-soft: var(--bb-brand-soft);
+  --color-bb-on-accent: var(--bb-on-accent);
+  --color-bb-paper: var(--bb-paper);
+  --color-bb-surface: var(--bb-surface);
+  --color-bb-surface-2: var(--bb-surface-2);
+  --color-bb-ink: var(--bb-ink);
+  --color-bb-ink-2: var(--bb-ink-2);
+  --color-bb-muted: var(--bb-muted);
+  --color-bb-line: var(--bb-line);
+  --color-bb-line-soft: var(--bb-line-soft);
+  --color-bb-sage: var(--bb-sage);
+  --color-bb-sage-soft: var(--bb-sage-soft);
+  --color-bb-amber: var(--bb-amber);
+  --color-bb-amber-soft: var(--bb-amber-soft);
+  --color-bb-sky: var(--bb-sky);
+  --color-bb-sky-soft: var(--bb-sky-soft);
+  --color-bb-violet: var(--bb-violet);
+  --color-bb-violet-soft: var(--bb-violet-soft);
+  --color-bb-danger: var(--bb-danger);
+  --color-bb-danger-soft: var(--bb-danger-soft);
+
+  /* Direct --ny-* Tailwind utilities (for new v2 code) */
+  --color-ny-bg: var(--ny-bg);
+  --color-ny-rail: var(--ny-rail);
+  --color-ny-panel: var(--ny-panel);
+  --color-ny-panel-2: var(--ny-panel-2);
+  --color-ny-line: var(--ny-line);
+  --color-ny-line-soft: var(--ny-line-soft);
+  --color-ny-ink: var(--ny-ink);
+  --color-ny-ink-2: var(--ny-ink-2);
+  --color-ny-muted: var(--ny-muted);
+  --color-ny-lime: var(--ny-lime);
+  --color-ny-lime-soft: var(--ny-lime-soft);
+  --color-ny-lime-t: var(--ny-lime-t);
+  --color-ny-lime-th: var(--ny-lime-th);
+  --color-ny-amber: var(--ny-amber);
+  --color-ny-green: var(--ny-green);
+  --color-ny-red: var(--ny-red);
+  --color-ny-blue: var(--ny-blue);
+  --color-ny-violet: var(--ny-violet);
+  --color-ny-pink: var(--ny-pink);
+
+  --radius-bb-chip: var(--radius-chip);
+  --radius-bb-btn: var(--radius-btn);
+  --radius-bb-frame: var(--radius-frame);
+  --radius-bb-frame-lg: var(--radius-frame-lg);
+
+  --shadow-bb-pop: var(--shadow-pop);
+
+  --ease-bb-out: var(--ease-out);
 }
 
+/* ---- shadcn semantic tokens mapped onto the palette ---------- */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: var(--ny-bg);
+  --foreground: var(--ny-ink);
+  --card: var(--ny-panel);
+  --card-foreground: var(--ny-ink);
+  --popover: var(--ny-panel);
+  --popover-foreground: var(--ny-ink);
+  --primary: var(--ny-lime);
+  --primary-foreground: var(--ny-on-accent);
+  --secondary: var(--ny-panel-2);
+  --secondary-foreground: var(--ny-ink);
+  --muted: var(--ny-panel-2);
+  --muted-foreground: var(--ny-muted);
+  --accent: var(--ny-lime-soft);
+  --accent-foreground: var(--ny-lime-t);
+  --destructive: var(--ny-red);
+  --border: var(--ny-line);
+  --input: var(--ny-line);
+  --ring: var(--ny-lime-t);
+  --chart-1: var(--ny-lime);
+  --chart-2: var(--ny-green);
+  --chart-3: var(--ny-blue);
+  --chart-4: var(--ny-violet);
+  --chart-5: var(--ny-amber);
+  --radius: 0.5rem;
+  --sidebar: var(--ny-rail);
+  --sidebar-foreground: var(--ny-ink);
+  --sidebar-primary: var(--ny-lime);
+  --sidebar-primary-foreground: var(--ny-on-accent);
+  --sidebar-accent: var(--ny-lime-soft);
+  --sidebar-accent-foreground: var(--ny-lime-t);
+  --sidebar-border: var(--ny-line);
+  --sidebar-ring: var(--ny-lime-t);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+@keyframes bbPulse {
+  0% { box-shadow: 0 0 0 0 var(--ny-pulse); }
+  70% { box-shadow: 0 0 0 9px rgba(163, 197, 133, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(163, 197, 133, 0); }
+}
+@keyframes bbUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes bbBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.15; }
+}
+
+.animate-bb-pulse { animation: bbPulse 1.8s infinite; }
+.animate-bb-up { animation: bbUp 0.3s var(--ease-out); }
+.animate-bb-blink { animation: bbBlink 1.6s infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-bb-pulse,
+  .animate-bb-up,
+  .animate-bb-blink {
+    animation: none !important;
+  }
 }
 
 @layer base {
@@ -123,8 +310,29 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-ui);
   }
   html {
     @apply font-sans;
+  }
+  ::placeholder {
+    color: var(--ny-muted);
+  }
+  select option {
+    background: var(--ny-panel);
+    color: var(--ny-ink);
+  }
+  /* Custom scrollbars (v2) */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--ny-line);
+    border-radius: 5px;
+    border: 2px solid var(--ny-bg);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
 }
