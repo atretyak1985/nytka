@@ -66,12 +66,16 @@ def find_user(base_url: str, email: str, token: str, query: str) -> dict | None:
 
 def create_issue(base_url: str, email: str, token: str, fields: dict) -> str:
     """POST /issue; on 400 (e.g. priority/assignee not on the create screen)
-    retry once with the minimal field set. Returns the new issue key."""
-    with _client(base_url, email, token) as c:
-        resp = c.post("/rest/api/3/issue", json={"fields": fields})
-        if resp.status_code == 400 and set(fields) - MINIMAL_FIELDS:
-            minimal = {k: v for k, v in fields.items() if k in MINIMAL_FIELDS}
-            resp = c.post("/rest/api/3/issue", json={"fields": minimal})
-        if resp.status_code not in (200, 201):
-            raise JiraError(f"Jira API {resp.status_code}: {resp.text[:500]}")
-        return resp.json()["key"]
+    retry once with the minimal field set. Returns the new issue key.
+    Transport failures are translated to JiraError so callers only handle one type."""
+    try:
+        with _client(base_url, email, token) as c:
+            resp = c.post("/rest/api/3/issue", json={"fields": fields})
+            if resp.status_code == 400 and set(fields) - MINIMAL_FIELDS:
+                minimal = {k: v for k, v in fields.items() if k in MINIMAL_FIELDS}
+                resp = c.post("/rest/api/3/issue", json={"fields": minimal})
+            if resp.status_code not in (200, 201):
+                raise JiraError(f"Jira API {resp.status_code}: {resp.text[:500]}")
+            return resp.json()["key"]
+    except httpx.HTTPError as e:
+        raise JiraError(f"{type(e).__name__}: {e}") from e

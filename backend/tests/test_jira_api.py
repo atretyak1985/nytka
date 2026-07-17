@@ -199,3 +199,17 @@ def test_retry_push_conflicts_when_already_synced(client, db_session):
     task.jira_issue_key = "CRM-1"
     db_session.commit()
     assert client.post(f"/api/tasks/{task.id}/jira-push").status_code == 409
+
+
+def test_push_survives_network_error(db_session, jira_ready, monkeypatch):
+    import httpx
+
+    monkeypatch.setattr(jira_client, "find_user", lambda *a, **k: None)
+    monkeypatch.setattr(
+        jira_client,
+        "create_issue",
+        lambda *a, **k: (_ for _ in ()).throw(jira_client.JiraError("ConnectError: down")),
+    )
+    task = make_task(db_session, jira_ready)
+    jira_service.push_task(db_session, task)  # must not raise
+    assert task.jira_issue_key is None and "ConnectError" in task.jira_sync_error

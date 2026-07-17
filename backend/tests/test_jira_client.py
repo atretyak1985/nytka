@@ -140,3 +140,15 @@ def test_create_issue_400_already_minimal_does_not_retry(monkeypatch):
             {"project": {"key": "CRM"}, "summary": "S", "issuetype": {"name": "Task"}},
         )
     assert len(calls) == 1  # no retry when already minimal
+
+
+def test_create_issue_translates_network_error_to_jira_error(monkeypatch):
+    def handler(request):
+        raise httpx.ConnectError("boom")
+
+    patch_client(monkeypatch, handler)
+    with pytest.raises(jira_client.JiraError):
+        jira_client.create_issue(
+            "https://acme.atlassian.net", "a@b.c", "tok",
+            {"project": {"key": "CRM"}, "summary": "S", "issuetype": {"name": "Task"}},
+        )
