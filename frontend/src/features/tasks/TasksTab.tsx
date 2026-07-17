@@ -6,8 +6,11 @@ import { Plus, Trash2 } from "lucide-react";
 import type { Task, TaskStatus } from "@/lib/client";
 import { TASK_STATUS, TASK_PRIORITY, formatTimestamp } from "@/lib/design-maps";
 import { Chip } from "@/components/ui/chip";
-import { useTasks, useCreateTask, usePatchTask, useDeleteTask, STATUS_ACTIONS } from "@/features/tasks/hooks";
+import { useTasks, useCreateTask, usePatchTask, useDeleteTask, useJiraPush, STATUS_ACTIONS } from "@/features/tasks/hooks";
 import { useMeetings } from "@/features/meetings/hooks";
+import { useProject } from "@/features/projects/hooks";
+import { useAppSettings } from "@/features/settings/appSettingsHooks";
+import { JiraApproveDialog } from "@/features/tasks/JiraApproveDialog";
 import { toast } from "sonner";
 
 type Filter = "all" | "draft" | "approved" | "done" | "rejected";
@@ -29,6 +32,11 @@ export function TasksTab({ projectId }: { projectId: number }) {
   const createTask = useCreateTask();
   const patchTask = usePatchTask();
   const deleteTask = useDeleteTask();
+  const { data: project } = useProject(projectId);
+  const { data: appSettings } = useAppSettings();
+  const jiraPush = useJiraPush();
+  const [previewTask, setPreviewTask] = useState<Task | null>(null);
+  const jiraFlow = Boolean(project?.jira_enabled && project?.jira_key);
 
   const meetingTitleById = useMemo(() => new Map((meetings ?? []).map((m) => [m.id, m.title])), [meetings]);
 
@@ -59,6 +67,11 @@ export function TasksTab({ projectId }: { projectId: number }) {
 
   const handleStatusChange = (id: number, to: TaskStatus) => {
     patchTask.mutate({ id, status: to });
+  };
+
+  const handleApprove = (task: Task) => {
+    if (jiraFlow) setPreviewTask(task);
+    else patchTask.mutate({ id: task.id, status: "approved" });
   };
 
   const handleDelete = (id: number) => {
@@ -111,7 +124,7 @@ export function TasksTab({ projectId }: { projectId: number }) {
                 task={task}
                 meetingTitle={task.meeting_id ? meetingTitleById.get(task.meeting_id) : undefined}
                 projectId={projectId}
-                onApprove={() => handleStatusChange(task.id, "approved")}
+                onApprove={() => handleApprove(task)}
                 onReject={() => handleStatusChange(task.id, "rejected")}
               />
             ))}
@@ -153,7 +166,9 @@ export function TasksTab({ projectId }: { projectId: number }) {
               projectId={projectId}
               meetingTitle={task.meeting_id ? meetingTitleById.get(task.meeting_id) : undefined}
               isFirst={i === 0}
-              onStatusChange={(to) => handleStatusChange(task.id, to)}
+              jiraBaseUrl={appSettings?.jira_base_url ?? ""}
+              onJiraRetry={() => jiraPush.mutate(task.id)}
+              onStatusChange={(to) => (to === "approved" ? handleApprove(task) : handleStatusChange(task.id, to))}
               onDelete={() => handleDelete(task.id)}
             />
           ))}
@@ -163,6 +178,7 @@ export function TasksTab({ projectId }: { projectId: number }) {
           <p className="m-0 text-[12.5px] text-bb-muted">No tasks for this filter.</p>
         </div>
       )}
+      <JiraApproveDialog task={previewTask} onClose={() => setPreviewTask(null)} />
     </div>
   );
 }
@@ -232,6 +248,8 @@ function TaskRow({
   projectId,
   meetingTitle,
   isFirst,
+  jiraBaseUrl,
+  onJiraRetry,
   onStatusChange,
   onDelete,
 }: {
@@ -239,6 +257,8 @@ function TaskRow({
   projectId: number;
   meetingTitle: string | undefined;
   isFirst: boolean;
+  jiraBaseUrl: string;
+  onJiraRetry: () => void;
   onStatusChange: (to: TaskStatus) => void;
   onDelete: () => void;
 }) {
@@ -250,7 +270,35 @@ function TaskRow({
     <div
       className={`grid grid-cols-[minmax(200px,2fr)_130px_100px_110px_160px_170px] items-center gap-2.5 px-5 py-2.75 ${isFirst ? "" : "border-t border-bb-line"}`}
     >
-      <span className="min-w-0 truncate text-[13px] font-medium text-bb-ink">{task.title}</span>
+      <span className="min-w-0">
+        <span className="block truncate text-[13px] font-medium text-bb-ink">{task.title}</span>
+        {task.jira_issue_key ? (
+          <a
+            href={jiraBaseUrl ? `${jiraBaseUrl}/browse/${task.jira_issue_key}` : undefined}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-[10px] tracking-[0.06em] text-bb-sky uppercase hover:underline"
+          >
+            {task.jira_issue_key}
+          </a>
+        ) : task.jira_sync_error ? (
+          <span className="flex items-center gap-1.5">
+            <span
+              title={task.jira_sync_error}
+              className="font-mono text-[10px] tracking-[0.06em] text-bb-danger uppercase"
+            >
+              Jira failed
+            </span>
+            <button
+              type="button"
+              onClick={onJiraRetry}
+              className="font-mono text-[10px] tracking-[0.06em] text-bb-brand uppercase hover:text-bb-wine focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy"
+            >
+              Retry
+            </button>
+          </span>
+        ) : null}
+      </span>
       <span className="truncate text-xs text-bb-ink-2">{task.assignee || "not assigned"}</span>
       <span className={`font-mono text-[10px] tracking-[0.06em] uppercase ${priority.className}`}>&#9679; {priority.label}</span>
       <span>
