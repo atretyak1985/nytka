@@ -89,12 +89,17 @@ class ProjectOut(BaseModel):
     team: list[TeamMember]
     jira_enabled: bool
     jira_key: str
+    jira_base_url: str
+    jira_email: str
+    jira_token_set: bool
+    jira_token_hint: str
     llm_provider: str
     llm_model: str
     llm_base_url: str | None
     created_at: datetime
     updated_at: datetime
     # llm_api_key intentionally excluded from responses
+    # jira_api_token intentionally excluded from responses
 
 
 class ProjectCreateIn(BaseModel):
@@ -114,6 +119,9 @@ class ProjectPatchIn(BaseModel):
     team: list[TeamMember] | None = None
     jira_enabled: bool | None = None
     jira_key: str | None = None
+    jira_base_url: str | None = None
+    jira_email: str | None = None
+    jira_api_token: str | None = None
     llm_provider: str | None = None
     llm_model: str | None = None
     llm_base_url: str | None = None
@@ -128,17 +136,10 @@ class LlmTestOut(BaseModel):
 class AppSettingsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     extraction_prompt: str
-    jira_base_url: str
-    jira_email: str
-    jira_token_set: bool
-    jira_token_hint: str  # last 4 chars of the stored token, "" when unset
 
 
 class AppSettingsPatchIn(BaseModel):
     extraction_prompt: str | None = None
-    jira_base_url: str | None = None
-    jira_email: str | None = None
-    jira_api_token: str | None = None  # None = keep existing; "" = clear
 
 
 class JiraTestOut(BaseModel):

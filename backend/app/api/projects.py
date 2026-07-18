@@ -3,9 +3,11 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.schemas import LlmConnectOut, LlmTestOut, ProjectCreateIn, ProjectOut, ProjectPatchIn
+from app.api.schemas import JiraTestOut, LlmConnectOut, LlmTestOut, ProjectCreateIn, ProjectOut, ProjectPatchIn
 from app.db.models import Project
 from app.db.session import get_db
+from app.jira import client as jira_client
+from app.jira.service import get_credentials
 from app.llm.client import get_client, model_and_kwargs
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -48,7 +50,15 @@ def patch_project(project_id: int, payload: ProjectPatchIn, db: Session = Depend
     project = db.get(Project, project_id)
     if project is None:
         raise HTTPException(404, "Project not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    # Normalize Jira credential fields (strip whitespace / trailing slashes)
+    if "jira_base_url" in updates and updates["jira_base_url"] is not None:
+        updates["jira_base_url"] = updates["jira_base_url"].strip().rstrip("/")
+    if "jira_email" in updates and updates["jira_email"] is not None:
+        updates["jira_email"] = updates["jira_email"].strip()
+    if "jira_api_token" in updates and updates["jira_api_token"] is not None:
+        updates["jira_api_token"] = updates["jira_api_token"].strip()
+    for field, value in updates.items():
         if value is None and field in NON_NULLABLE_FIELDS:
             raise HTTPException(422, f"Field '{field}' cannot be null")
         setattr(project, field, value)
@@ -126,3 +136,15 @@ def llm_connect(project_id: int, db: Session = Depends(get_db)) -> LlmConnectOut
         return LlmConnectOut(ok=True, models=models, model=models[0] if models else None)
     except Exception as exc:  # noqa: BLE001 - report any connectivity error to UI
         return LlmConnectOut(ok=False, error=_redact(str(exc)[:500], project.llm_api_key))
+
+
+@router.post("/{project_id}/jira-test", response_model=JiraTestOut)
+def jira_test(project_id: int, db: Session = Depends(get_db)) -> JiraTestOut:
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "Project not found")
+    creds = get_credentials(project)
+    if creds is None:
+        return JiraTestOut(ok=False, error="Jira is not configured for this project — base URL, email and API token are required.")
+    result = jira_client.test_connection(*creds)
+    return JiraTestOut(**result) if result["ok"] else JiraTestOut(ok=False, error=result["error"])

@@ -8,17 +8,15 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.db.models import Project, Task, TaskPriority
-from app.db.seed import ensure_app_settings
 from app.jira import client as jira_client
 
 PRIORITY_MAP = {TaskPriority.LOW: "Low", TaskPriority.MEDIUM: "Medium", TaskPriority.HIGH: "High"}
 ISSUE_TYPE = "Task"
 
 
-def get_credentials(db: Session) -> tuple[str, str, str] | None:
-    row = ensure_app_settings(db)
-    if row.jira_base_url and row.jira_email and row.jira_api_token:
-        return row.jira_base_url, row.jira_email, row.jira_api_token
+def get_credentials(project: Project) -> tuple[str, str, str] | None:
+    if project.jira_base_url and project.jira_email and project.jira_api_token:
+        return project.jira_base_url, project.jira_email, project.jira_api_token
     return None
 
 
@@ -31,9 +29,9 @@ def build_preview(db: Session, task: Task) -> dict:
     project = db.get(Project, task.project_id)
     if not jira_enabled_for(project):
         return {"ok": False, "error": "Jira is not enabled for this project (toggle + project key required)."}
-    creds = get_credentials(db)
+    creds = get_credentials(project)
     if creds is None:
-        return {"ok": False, "error": "Jira credentials are not configured — set them in Settings."}
+        return {"ok": False, "error": "Jira credentials are not configured — set them in this project's Settings."}
 
     description = task.description or ""
     if task.meeting is not None:
@@ -72,7 +70,8 @@ def push_task(db: Session, task: Task) -> None:
         task.jira_sync_error = preview["error"]
         db.commit()
         return
-    creds = get_credentials(db)
+    project = db.get(Project, task.project_id)
+    creds = get_credentials(project)
     fields: dict = {
         "project": {"key": preview["project_key"]},
         "summary": preview["summary"],

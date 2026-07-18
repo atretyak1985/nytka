@@ -45,6 +45,9 @@ class Project(Base):
     team: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)  # items: {"name", "role"}
     jira_enabled: Mapped[bool] = mapped_column(default=False)
     jira_key: Mapped[str] = mapped_column(String(50), default="")
+    jira_base_url: Mapped[str] = mapped_column(String(500), default="")  # e.g. https://acme.atlassian.net
+    jira_email: Mapped[str] = mapped_column(String(300), default="")
+    jira_api_token: Mapped[str] = mapped_column(String(500), default="")  # stored plaintext locally; never returned by the API
     llm_provider: Mapped[str] = mapped_column(String(50), default="lmstudio")
     llm_model: Mapped[str] = mapped_column(String(200), default="local-model")
     # IPv4 loopback on purpose: `localhost` resolves to `::1` first on macOS while
@@ -53,6 +56,14 @@ class Project(Base):
     llm_api_key: Mapped[str | None] = mapped_column(String(500), default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+    @property
+    def jira_token_set(self) -> bool:
+        return bool(self.jira_api_token)
+
+    @property
+    def jira_token_hint(self) -> str:
+        return self.jira_api_token[-4:] if self.jira_api_token else ""
 
     meetings: Mapped[list[Meeting]] = relationship(back_populates="project")
 
@@ -131,7 +142,4 @@ class AppSetting(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     extraction_prompt: Mapped[str] = mapped_column(Text, default="")
-    jira_base_url: Mapped[str] = mapped_column(String(500), default="")  # e.g. https://acme.atlassian.net
-    jira_email: Mapped[str] = mapped_column(String(300), default="")
-    jira_api_token: Mapped[str] = mapped_column(String(500), default="")  # stored plaintext locally; never returned by the API
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
