@@ -88,6 +88,7 @@ export const api = {
     payload: Omit<Partial<Project>, "id" | "created_at" | "updated_at"> & {
       llm_api_key?: string;
       llm_base_url?: string | null;
+      jira_api_token?: string;
     },
   ) =>
     apiFetch<Project>(`/api/projects/${id}`, {
@@ -98,19 +99,14 @@ export const api = {
   llmTest: (id: number) => apiFetch<LlmTestResult>(`/api/projects/${id}/llm-test`, { method: "POST" }),
   llmConnect: (id: number) =>
     apiFetch<LlmConnectResult>(`/api/projects/${id}/llm-connect`, { method: "POST" }),
+  jiraTest: (id: number) => apiFetch<JiraTestResult>(`/api/projects/${id}/jira-test`, { method: "POST" }),
   getSettings: () => apiFetch<AppSettings>("/api/settings"),
-  patchSettings: (payload: {
-    extraction_prompt?: string;
-    jira_base_url?: string;
-    jira_email?: string;
-    jira_api_token?: string;
-  }) =>
+  patchSettings: (payload: { extraction_prompt?: string }) =>
     apiFetch<AppSettings>("/api/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
-  jiraTest: () => apiFetch<JiraTestResult>("/api/settings/jira-test", { method: "POST" }),
   getJiraPreview: (taskId: number) => apiFetch<JiraPreview>(`/api/tasks/${taskId}/jira-preview`),
   jiraPush: (taskId: number) => apiFetch<Task>(`/api/tasks/${taskId}/jira-push`, { method: "POST" }),
 };

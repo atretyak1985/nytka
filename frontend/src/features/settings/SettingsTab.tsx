@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
 import { CircleCheckIcon, Loader2Icon, OctagonXIcon, Sparkles, X } from "lucide-react";
 import type { Project, TeamMember } from "@/lib/client";
 import { LLM_PROVIDERS, LMSTUDIO_BASE_URL, isLocalProvider, normalizeLlmProvider } from "@/lib/design-maps";
-import { useLlmConnect, usePatchProject } from "@/features/projects/hooks";
-import { useAppSettings } from "@/features/settings/appSettingsHooks";
+import { useJiraTest, useLlmConnect, usePatchProject } from "@/features/projects/hooks";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface FormState {
@@ -21,6 +19,9 @@ interface FormState {
   llmBaseUrl: string;
   jiraEnabled: boolean;
   jiraKey: string;
+  jiraBaseUrl: string;
+  jiraEmail: string;
+  jiraToken: string; // write-only: empty means "keep the stored token"
 }
 
 function toFormState(project: Project): FormState {
@@ -38,6 +39,9 @@ function toFormState(project: Project): FormState {
     llmBaseUrl: project.llm_base_url ?? (llmProvider === "lmstudio" ? LMSTUDIO_BASE_URL : ""),
     jiraEnabled: project.jira_enabled,
     jiraKey: project.jira_key,
+    jiraBaseUrl: project.jira_base_url,
+    jiraEmail: project.jira_email,
+    jiraToken: "", // write-only: never pre-filled from server
   };
 }
 
@@ -54,6 +58,10 @@ function toPatchPayload(form: FormState) {
     llm_base_url: form.llmBaseUrl || null,
     jira_enabled: form.jiraEnabled,
     jira_key: form.jiraKey,
+    jira_base_url: form.jiraBaseUrl,
+    jira_email: form.jiraEmail,
+    // Only include token when the user has typed a new one (write-only field).
+    ...(form.jiraToken ? { jira_api_token: form.jiraToken } : {}),
   };
 }
 
@@ -63,13 +71,17 @@ export function SettingsTab({ project }: { project: Project }) {
   const [teamDraft, setTeamDraft] = useState("");
   const patchProject = usePatchProject();
   const llmConnect = useLlmConnect();
-  const { data: appSettings } = useAppSettings();
-  const jiraConfigured = Boolean(appSettings?.jira_base_url && appSettings?.jira_token_set);
+  const jiraTest = useJiraTest();
   const [connectionStatus, setConnectionStatus] = useState<{
     kind: "success" | "error";
     message: string;
   } | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [jiraStatus, setJiraStatus] = useState<{
+    kind: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [testingJira, setTestingJira] = useState(false);
 
   // Re-sync local form state when the underlying project changes from elsewhere (e.g. after
   // save). Adjusting state during render is React's recommended alternative to a syncing effect.
@@ -115,6 +127,30 @@ export function SettingsTab({ project }: { project: Project }) {
       setConnectionStatus({ kind: "error", message: e instanceof Error ? e.message : "Connection failed" });
     } finally {
       setTestingConnection(false);
+    }
+  };
+
+  const handleJiraTest = async () => {
+    setTestingJira(true);
+    setJiraStatus(null);
+    try {
+      // jira-test probes the STORED project config, so persist the form first (same pattern as LLM).
+      await patchProject.mutateAsync({ id: project.id, ...toPatchPayload(form) });
+      const result = await jiraTest.mutateAsync(project.id);
+      if (!result.ok) {
+        setJiraStatus({ kind: "error", message: result.error ?? "Connection failed" });
+        return;
+      }
+      setJiraStatus({
+        kind: "success",
+        message: result.account_name ? `Connected · ${result.account_name}` : "Connected",
+      });
+      // Clear write-only token field on success.
+      setForm((f) => ({ ...f, jiraToken: "" }));
+    } catch (e) {
+      setJiraStatus({ kind: "error", message: e instanceof Error ? e.message : "Connection failed" });
+    } finally {
+      setTestingJira(false);
     }
   };
 
@@ -373,7 +409,10 @@ export function SettingsTab({ project }: { project: Project }) {
               role="switch"
               aria-checked={form.jiraEnabled}
               aria-label="Toggle Jira integration"
-              onClick={() => setForm((f) => ({ ...f, jiraEnabled: !f.jiraEnabled }))}
+              onClick={() => {
+                setJiraStatus(null);
+                setForm((f) => ({ ...f, jiraEnabled: !f.jiraEnabled }));
+              }}
               className={`relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bb-burgundy ${form.jiraEnabled ? "bg-bb-sage" : "bg-bb-line"}`}
             >
               <span
@@ -383,26 +422,70 @@ export function SettingsTab({ project }: { project: Project }) {
           </div>
           <p className="m-0 mb-3 text-xs text-bb-muted">Approved tasks are automatically created in Jira.</p>
           {form.jiraEnabled ? (
-            <div className="flex items-center gap-2.5">
-              <span className="w-[70px] shrink-0 font-mono text-[10px] tracking-[0.08em] text-bb-muted uppercase">Key</span>
-              <input
-                value={form.jiraKey}
-                onChange={(e) => setForm((f) => ({ ...f, jiraKey: e.target.value }))}
-                placeholder="CRM"
-                className="h-8 w-[110px] rounded-bb-btn border border-bb-line bg-bb-paper px-2.5 font-mono text-xs text-bb-ink outline-none focus-visible:border-bb-burgundy"
-              />
-              {jiraConfigured ? (
-                <span className="rounded-md bg-bb-sage-soft px-2 py-0.5 font-mono text-[9.5px] font-medium tracking-[0.06em] text-bb-sage uppercase">
-                  Connected
-                </span>
-              ) : (
-                <Link
-                  href="/settings"
-                  className="rounded-md bg-bb-surface-2 px-2 py-0.5 font-mono text-[9.5px] font-medium tracking-[0.06em] text-bb-amber uppercase hover:underline"
+            <div className="flex flex-col gap-2.5">
+              {(
+                [
+                  { key: "jiraBaseUrl", label: "Base URL", placeholder: "https://your-team.atlassian.net", type: "text" },
+                  { key: "jiraEmail", label: "Email", placeholder: "you@company.com", type: "text" },
+                  {
+                    key: "jiraToken",
+                    label: "API token",
+                    placeholder: project.jira_token_set
+                      ? `••••••••${project.jira_token_hint} (saved)`
+                      : "Paste API token",
+                    type: "password",
+                  },
+                  { key: "jiraKey", label: "Key", placeholder: "CRM", type: "text" },
+                ] as const
+              ).map((field) => (
+                <div key={field.key} className="flex items-center gap-2.5">
+                  <span className="w-[70px] shrink-0 font-mono text-[10px] tracking-[0.08em] text-bb-muted uppercase">
+                    {field.label}
+                  </span>
+                  <input
+                    type={field.type}
+                    value={form[field.key]}
+                    onChange={(e) => {
+                      setJiraStatus(null);
+                      setForm((f) => ({ ...f, [field.key]: e.target.value }));
+                    }}
+                    placeholder={field.placeholder}
+                    aria-label={`Jira ${field.label}`}
+                    className={`h-8 rounded-bb-btn border border-bb-line bg-bb-paper px-2.5 font-mono text-xs text-bb-ink outline-none focus-visible:border-bb-burgundy ${field.key === "jiraKey" ? "w-[110px]" : "flex-1"}`}
+                  />
+                </div>
+              ))}
+              <div className="mt-1 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleJiraTest}
+                  disabled={testingJira}
+                  className="flex h-8 shrink-0 items-center rounded-bb-btn border border-bb-line bg-bb-surface px-3 text-xs font-medium text-bb-ink transition-colors hover:bg-bb-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Set up in Settings
-                </Link>
-              )}
+                  Test connection
+                </button>
+                <span role="status" aria-live="polite" className="flex min-w-0 items-center gap-1.5 text-xs">
+                  {testingJira ? (
+                    <>
+                      <Loader2Icon className="size-3.5 shrink-0 animate-spin text-bb-muted" aria-hidden="true" />
+                      <span className="text-bb-muted">Testing connection…</span>
+                    </>
+                  ) : jiraStatus ? (
+                    <>
+                      {jiraStatus.kind === "success" ? (
+                        <CircleCheckIcon className="size-3.5 shrink-0 text-bb-sage" aria-hidden="true" />
+                      ) : (
+                        <OctagonXIcon className="size-3.5 shrink-0 text-bb-danger" aria-hidden="true" />
+                      )}
+                      <span
+                        className={`min-w-0 break-words ${jiraStatus.kind === "success" ? "text-bb-sage" : "text-bb-danger"}`}
+                      >
+                        {jiraStatus.message}
+                      </span>
+                    </>
+                  ) : null}
+                </span>
+              </div>
             </div>
           ) : (
             <p className="m-0 font-mono text-[10px] tracking-[0.08em] text-bb-muted uppercase">Disabled</p>

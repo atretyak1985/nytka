@@ -9,7 +9,6 @@ import { Chip } from "@/components/ui/chip";
 import { useTasks, useCreateTask, usePatchTask, useDeleteTask, useJiraPush, STATUS_ACTIONS } from "@/features/tasks/hooks";
 import { useMeetings } from "@/features/meetings/hooks";
 import { useProject } from "@/features/projects/hooks";
-import { useAppSettings } from "@/features/settings/appSettingsHooks";
 import { JiraApproveDialog } from "@/features/tasks/JiraApproveDialog";
 import { toast } from "sonner";
 
@@ -33,7 +32,6 @@ export function TasksTab({ projectId }: { projectId: number }) {
   const patchTask = usePatchTask();
   const deleteTask = useDeleteTask();
   const { data: project } = useProject(projectId);
-  const { data: appSettings } = useAppSettings();
   const jiraPush = useJiraPush();
   const [previewTask, setPreviewTask] = useState<Task | null>(null);
   const jiraFlow = Boolean(project?.jira_enabled && project?.jira_key);
@@ -166,7 +164,7 @@ export function TasksTab({ projectId }: { projectId: number }) {
               projectId={projectId}
               meetingTitle={task.meeting_id ? meetingTitleById.get(task.meeting_id) : undefined}
               isFirst={i === 0}
-              jiraBaseUrl={appSettings?.jira_base_url ?? ""}
+              jiraBaseUrl={project?.jira_base_url ?? ""}
               onJiraRetry={() => jiraPush.mutate(task.id)}
               onStatusChange={(to) => handleStatusChange(task.id, to)}
               onDelete={() => handleDelete(task.id)}

@@ -250,6 +250,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/jira-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Jira Test */
+        post: operations["jira_test_api_projects__project_id__jira_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings": {
         parameters: {
             query?: never;
@@ -266,23 +283,6 @@ export interface paths {
         head?: never;
         /** Patch Settings */
         patch: operations["patch_settings_api_settings_patch"];
-        trace?: never;
-    };
-    "/api/settings/jira-test": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Jira Test */
-        post: operations["jira_test_api_settings_jira_test_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/health": {
@@ -310,25 +310,11 @@ export interface components {
         AppSettingsOut: {
             /** Extraction Prompt */
             extraction_prompt: string;
-            /** Jira Base Url */
-            jira_base_url: string;
-            /** Jira Email */
-            jira_email: string;
-            /** Jira Token Set */
-            jira_token_set: boolean;
-            /** Jira Token Hint */
-            jira_token_hint: string;
         };
         /** AppSettingsPatchIn */
         AppSettingsPatchIn: {
             /** Extraction Prompt */
             extraction_prompt?: string | null;
-            /** Jira Base Url */
-            jira_base_url?: string | null;
-            /** Jira Email */
-            jira_email?: string | null;
-            /** Jira Api Token */
-            jira_api_token?: string | null;
         };
         /** Body_upload_meeting_api_meetings_post */
         Body_upload_meeting_api_meetings_post: {
@@ -506,6 +492,14 @@ export interface components {
             jira_enabled: boolean;
             /** Jira Key */
             jira_key: string;
+            /** Jira Base Url */
+            jira_base_url: string;
+            /** Jira Email */
+            jira_email: string;
+            /** Jira Token Set */
+            jira_token_set: boolean;
+            /** Jira Token Hint */
+            jira_token_hint: string;
             /** Llm Provider */
             llm_provider: string;
             /** Llm Model */
@@ -545,6 +539,12 @@ export interface components {
             jira_enabled?: boolean | null;
             /** Jira Key */
             jira_key?: string | null;
+            /** Jira Base Url */
+            jira_base_url?: string | null;
+            /** Jira Email */
+            jira_email?: string | null;
+            /** Jira Api Token */
+            jira_api_token?: string | null;
             /** Llm Provider */
             llm_provider?: string | null;
             /** Llm Model */
@@ -1232,6 +1232,37 @@ export interface operations {
             };
         };
     };
+    jira_test_api_projects__project_id__jira_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraTestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_settings_api_settings_get: {
         parameters: {
             query?: never;
@@ -1281,26 +1312,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    jira_test_api_settings_jira_test_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JiraTestOut"];
                 };
             };
         };

@@ -39,6 +39,11 @@ export function useLlmConnect() {
   return useMutation({ mutationFn: api.llmConnect });
 }
 
+/** Test the project-scoped Jira connection against the stored credentials. */
+export function useJiraTest() {
+  return useMutation({ mutationFn: api.jiraTest });
+}
+
 /** Count of draft (to-review) tasks — used for sidebar/tab badges. */
 export function draftCount(tasks: { status: string }[]): number {
   return tasks.filter((t) => t.status === "draft").length;
