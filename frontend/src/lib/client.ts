@@ -15,6 +15,11 @@ export type LlmConnectResult = components["schemas"]["LlmConnectOut"];
 export type AppSettings = components["schemas"]["AppSettingsOut"];
 export type JiraTestResult = components["schemas"]["JiraTestOut"];
 export type JiraPreview = components["schemas"]["JiraPreviewOut"];
+export type JiraUsers = components["schemas"]["JiraUsersOut"];
+export type KnowledgeState = components["schemas"]["KnowledgeStateOut"];
+export type KnowledgeFile = components["schemas"]["KnowledgeFileOut"];
+export type KnowledgeStatus = components["schemas"]["KnowledgeStatus"];
+export type TaskScreenshot = components["schemas"]["TaskScreenshotOut"];
 
 export const ACTIVE_STATUSES: MeetingStatus[] = ["queued", "processing", "transcribing", "extracting"];
 
@@ -63,7 +68,7 @@ export const api = {
     }),
   patchTask: (
     id: number,
-    payload: Partial<Pick<Task, "title" | "description" | "assignee" | "priority" | "status">> & {
+    payload: Partial<Pick<Task, "title" | "description" | "area" | "labels" | "assignee" | "priority" | "status">> & {
       push_to_jira?: boolean;
     },
   ) =>
@@ -100,6 +105,7 @@ export const api = {
   llmConnect: (id: number) =>
     apiFetch<LlmConnectResult>(`/api/projects/${id}/llm-connect`, { method: "POST" }),
   jiraTest: (id: number) => apiFetch<JiraTestResult>(`/api/projects/${id}/jira-test`, { method: "POST" }),
+  listJiraUsers: (id: number) => apiFetch<JiraUsers>(`/api/projects/${id}/jira-users`),
   getSettings: () => apiFetch<AppSettings>("/api/settings"),
   patchSettings: (payload: { extraction_prompt?: string }) =>
     apiFetch<AppSettings>("/api/settings", {
@@ -109,4 +115,32 @@ export const api = {
     }),
   getJiraPreview: (taskId: number) => apiFetch<JiraPreview>(`/api/tasks/${taskId}/jira-preview`),
   jiraPush: (taskId: number) => apiFetch<Task>(`/api/tasks/${taskId}/jira-push`, { method: "POST" }),
+  listTaskScreenshots: (taskId: number) =>
+    apiFetch<TaskScreenshot[]>(`/api/tasks/${taskId}/screenshots`),
+  deleteTaskScreenshot: async (taskId: number, screenshotId: number): Promise<void> => {
+    const res = await fetch(`${API_URL}/api/tasks/${taskId}/screenshots/${screenshotId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error(await res.text());
+  },
+  getKnowledge: (projectId: number) =>
+    apiFetch<KnowledgeState>(`/api/projects/${projectId}/knowledge`),
+  uploadKnowledgeFile: async (projectId: number, file: File): Promise<KnowledgeFile> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${API_URL}/api/projects/${projectId}/knowledge`, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<KnowledgeFile>;
+  },
+  deleteKnowledgeFile: async (projectId: number, fileId: number): Promise<void> => {
+    const res = await fetch(`${API_URL}/api/projects/${projectId}/knowledge/${fileId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error(await res.text());
+  },
+  initKnowledge: (projectId: number) =>
+    apiFetch<KnowledgeState>(`/api/projects/${projectId}/knowledge/init`, { method: "POST" }),
 };
