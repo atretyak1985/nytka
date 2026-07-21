@@ -17,6 +17,14 @@ class Settings(BaseSettings):
         return self.data_dir / "media"
 
     @property
+    def knowledge_dir(self) -> Path:
+        return self.data_dir / "knowledge"
+
+    @property
+    def screenshots_dir(self) -> Path:
+        return self.data_dir / "screenshots"
+
+    @property
     def db_url(self) -> str:
         return self.database_url or f"sqlite:///{self.data_dir / 'nytka.db'}"
 

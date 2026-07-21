@@ -1,14 +1,25 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.schemas import JiraTestOut, LlmConnectOut, LlmTestOut, ProjectCreateIn, ProjectOut, ProjectPatchIn
+from app.api.schemas import (
+    JiraTestOut,
+    JiraUserOut,
+    JiraUsersOut,
+    LlmConnectOut,
+    LlmTestOut,
+    ProjectCreateIn,
+    ProjectOut,
+    ProjectPatchIn,
+)
 from app.db.models import Project
 from app.db.session import get_db
 from app.jira import client as jira_client
 from app.jira.service import get_credentials
-from app.llm.client import get_client, model_and_kwargs
+from app.llm.client import get_client, model_and_kwargs, normalize_base_url
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -22,10 +33,15 @@ NON_NULLABLE_FIELDS = {
     "ai_context",
     "task_prefix",
     "task_format",
+    "task_language",
+    "task_areas",
     "glossary",
     "team",
     "jira_enabled",
     "jira_key",
+    "jira_static_labels",
+    "jira_demo_label",
+    "jira_sprint_field",
     "llm_provider",
     "llm_model",
 }
@@ -62,6 +78,9 @@ def patch_project(project_id: int, payload: ProjectPatchIn, db: Session = Depend
         if value is None and field in NON_NULLABLE_FIELDS:
             raise HTTPException(422, f"Field '{field}' cannot be null")
         setattr(project, field, value)
+    # ai_context is a knowledge-base source; editing it makes the distilled brief stale.
+    if "ai_context" in updates:
+        project.knowledge_sources_changed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     db.refresh(project)
     return project
@@ -77,10 +96,7 @@ def _models_url(base_url: str) -> str:
 
     Accepts both ``http://host:1234`` and ``http://host:1234/v1`` forms.
     """
-    base = base_url.rstrip("/")
-    if not base.endswith("/v1"):
-        base = f"{base}/v1"
-    return f"{base}/models"
+    return f"{normalize_base_url(base_url)}/models"
 
 
 @router.post("/{project_id}/llm-test", response_model=LlmTestOut)
@@ -148,3 +164,18 @@ def jira_test(project_id: int, db: Session = Depends(get_db)) -> JiraTestOut:
         return JiraTestOut(ok=False, error="Jira is not configured for this project — base URL, email and API token are required.")
     result = jira_client.test_connection(*creds)
     return JiraTestOut(**result) if result["ok"] else JiraTestOut(ok=False, error=result["error"])
+
+
+@router.get("/{project_id}/jira-users", response_model=JiraUsersOut)
+def jira_users(project_id: int, db: Session = Depends(get_db)) -> JiraUsersOut:
+    """Assignable users of the project's Jira project, for the assignee picker."""
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "Project not found")
+    creds = get_credentials(project)
+    if creds is None or not project.jira_key:
+        return JiraUsersOut(ok=False, error="Jira is not configured for this project.")
+    users = jira_client.list_assignable_users(*creds, project.jira_key)
+    if users is None:
+        return JiraUsersOut(ok=False, error="Could not fetch users from Jira — check the connection in Settings.")
+    return JiraUsersOut(ok=True, users=[JiraUserOut(**u) for u in users])

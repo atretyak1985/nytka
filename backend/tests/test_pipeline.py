@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.db.models import Meeting, MeetingStatus, TranscriptSegment
+from app.db.models import Meeting, MeetingStatus, Task, TaskScreenshot, TranscriptSegment
 from app.pipeline.audio import AudioExtractionError, extract_audio
 from app.pipeline.runner import run_pipeline_with_session
 from app.pipeline.transcribe import pick_model_size
@@ -90,5 +90,65 @@ def test_retry_resumes_after_transcription(db_session, tone_wav) -> None:
         run_pipeline_with_session(db_session, meeting.id)
     mock_transcribe.assert_not_called()
     mock_extract.assert_called_once()
+    db_session.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE
+
+
+def _make_screenshot_meeting(db, media: Path) -> tuple[Meeting, Task]:
+    """Meeting with a segment (skips transcribe) and one timestamped task (skips extract)."""
+    meeting = _make_meeting(db, str(media))
+    meeting.duration_sec = 600.0
+    db.add(TranscriptSegment(meeting_id=meeting.id, t_start=0, t_end=1, text="seg"))
+    task = Task(project_id=1, meeting_id=meeting.id, title="t", source_timestamp=60.0)
+    db.add(task)
+    db.commit()
+    return meeting, task
+
+
+def test_pipeline_survives_screenshot_failure(db_session, tmp_path) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"fake")
+    meeting, _task = _make_screenshot_meeting(db_session, media)
+    with patch("app.pipeline.runner.extract_audio"), \
+         patch("app.pipeline.runner.generate_for_task", side_effect=RuntimeError("ffmpeg exploded")):
+        run_pipeline_with_session(db_session, meeting.id)
+    db_session.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE  # screenshot failure swallowed
+
+
+def test_pipeline_commits_screenshot_rows_idempotently(db_session, tmp_path) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"fake")
+    meeting, task = _make_screenshot_meeting(db_session, media)
+
+    def fake_generate(t: Task, source: Path, duration: float) -> list[TaskScreenshot]:
+        return [
+            TaskScreenshot(task_id=t.id, path=f"/tmp/{t.id}/frame_0.jpg", t_sec=55.0, position=0),
+            TaskScreenshot(task_id=t.id, path=f"/tmp/{t.id}/frame_1.jpg", t_sec=60.0, position=1),
+        ]
+
+    with patch("app.pipeline.runner.extract_audio"), \
+         patch("app.pipeline.runner.generate_for_task", side_effect=fake_generate) as mock_gen:
+        run_pipeline_with_session(db_session, meeting.id)
+        assert db_session.query(TaskScreenshot).filter_by(task_id=task.id).count() == 2
+        run_pipeline_with_session(db_session, meeting.id)  # rerun: task already has frames
+    assert db_session.query(TaskScreenshot).filter_by(task_id=task.id).count() == 2
+    assert mock_gen.call_count == 1  # idempotent: not called again on the rerun
+    db_session.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE
+
+
+def test_pipeline_skips_screenshots_for_audio_only(db_session, tmp_path) -> None:
+    media = tmp_path / "m.mp3"
+    media.write_bytes(b"fake")
+    meeting, _task = _make_screenshot_meeting(db_session, media)
+    meeting.duration_sec = None  # transcription did not set it; probe decides
+    db_session.commit()
+    with patch("app.pipeline.runner.extract_audio"), \
+         patch("app.pipeline.runner.probe_video_duration", return_value=None) as mock_probe, \
+         patch("app.pipeline.runner.generate_for_task") as mock_gen:
+        run_pipeline_with_session(db_session, meeting.id)
+    mock_probe.assert_called_once()
+    mock_gen.assert_not_called()  # no video stream — zero capture attempts
     db_session.refresh(meeting)
     assert meeting.status == MeetingStatus.DONE

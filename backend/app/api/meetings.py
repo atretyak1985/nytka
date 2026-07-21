@@ -14,6 +14,7 @@ from app.db.models import Meeting, MeetingStatus, Project, Task
 from app.db.seed import ensure_default_project
 from app.db.session import get_db
 from app.pipeline.runner import run_pipeline, wav_path_for
+from app.pipeline.screenshots import delete_screenshot_files
 
 router = APIRouter(prefix="/api/meetings", tags=["meetings"])
 
@@ -121,6 +122,7 @@ def reextract_meeting(meeting_id: int, background: BackgroundTasks, db: Session 
         raise HTTPException(409, f"Meeting is still processing (status: {meeting.status})")
 
     for task in db.scalars(select(Task).where(Task.meeting_id == meeting.id)):
+        delete_screenshot_files(task)
         db.delete(task)
     meeting.status = MeetingStatus.QUEUED
     meeting.error_message = None
@@ -140,6 +142,7 @@ def delete_meeting(meeting_id: int, db: Session = Depends(get_db)) -> None:
     # Remove the meeting's tasks (their meeting_id FK would otherwise dangle);
     # segments cascade via the relationship. Then drop the row and the media files.
     for task in db.scalars(select(Task).where(Task.meeting_id == meeting.id)):
+        delete_screenshot_files(task)
         db.delete(task)
     media_files = [Path(meeting.media_path), wav_path_for(meeting)]
     db.delete(meeting)

@@ -100,6 +100,44 @@ def test_reextract_409_while_active(client):
     assert client.post(f"/api/meetings/{mid}/reextract").status_code == 409
 
 
+def test_delete_meeting_removes_task_screenshot_dirs(client, db_session):
+    from app.core.config import settings
+    from app.db.models import Meeting, Task
+
+    with patch("app.api.meetings.run_pipeline"):
+        mid = upload(client).json()["id"]
+    meeting = db_session.get(Meeting, mid)
+    task = Task(project_id=meeting.project_id, meeting_id=mid, title="with frames")
+    db_session.add(task)
+    db_session.commit()
+    frame_dir = settings.screenshots_dir / str(task.id)
+    frame_dir.mkdir(parents=True, exist_ok=True)
+    (frame_dir / "frame_0.jpg").write_bytes(b"jpeg")
+
+    assert client.delete(f"/api/meetings/{mid}").status_code == 204
+    assert not frame_dir.exists()
+
+
+def test_reextract_removes_task_screenshot_dirs(client, db_session):
+    from app.core.config import settings
+    from app.db.models import Meeting, MeetingStatus, Task
+
+    with patch("app.api.meetings.run_pipeline"):
+        mid = upload(client).json()["id"]
+    meeting = db_session.get(Meeting, mid)
+    meeting.status = MeetingStatus.DONE
+    task = Task(project_id=meeting.project_id, meeting_id=mid, title="old task")
+    db_session.add(task)
+    db_session.commit()
+    frame_dir = settings.screenshots_dir / str(task.id)
+    frame_dir.mkdir(parents=True, exist_ok=True)
+    (frame_dir / "frame_0.jpg").write_bytes(b"jpeg")
+
+    with patch("app.api.meetings.run_pipeline"):
+        assert client.post(f"/api/meetings/{mid}/reextract").status_code == 200
+    assert not frame_dir.exists()  # re-extract recreates tasks with NEW ids — old frames must go
+
+
 def test_upload_rejects_oversized_file(client, monkeypatch):
     from app.core.config import settings
 
