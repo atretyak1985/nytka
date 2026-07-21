@@ -23,3 +23,8 @@ data/
 
 # research artifacts stay untracked
 *.pdf
+
+# agent tooling (machine-local: session telemetry, agent memory, worktrees)
+.swarmery/
+.claude/worktrees/
+**/.claude/agent-memory/
