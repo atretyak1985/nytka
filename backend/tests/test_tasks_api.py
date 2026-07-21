@@ -46,3 +46,15 @@ def test_delete(client):
     task_id = make_task(client).json()["id"]
     assert client.delete(f"/api/tasks/{task_id}").status_code == 204
     assert client.get("/api/tasks").json() == []
+
+
+def test_delete_removes_screenshot_files(client):
+    from app.core.config import settings
+
+    task_id = make_task(client).json()["id"]
+    frame_dir = settings.screenshots_dir / str(task_id)
+    frame_dir.mkdir(parents=True, exist_ok=True)
+    (frame_dir / "frame_0.jpg").write_bytes(b"jpeg")
+
+    assert client.delete(f"/api/tasks/{task_id}").status_code == 204
+    assert not frame_dir.exists()

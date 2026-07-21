@@ -9,7 +9,6 @@ import { useMeeting, useReextractMeeting, useRetryMeeting } from "@/features/mee
 import { ProcessingStats } from "@/features/meetings/ProcessingStats";
 import { DeleteMeetingButton } from "@/features/meetings/DeleteMeetingButton";
 import { usePatchTask } from "@/features/tasks/hooks";
-import { useProject } from "@/features/projects/hooks";
 import { JiraApproveDialog } from "@/features/tasks/JiraApproveDialog";
 import { ACTIVE_STATUSES, type MeetingStatus, type Task } from "@/lib/client";
 import { MEETING_STATUS, TASK_STATUS, formatDurationMinutes, formatTimestamp, speakerColor } from "@/lib/design-maps";
@@ -67,9 +66,7 @@ export default function MeetingDetailPage({
   const retryMeeting = useRetryMeeting();
   const reextractMeeting = useReextractMeeting();
   const patchTask = usePatchTask();
-  const { data: project } = useProject(projectId);
   const [previewTask, setPreviewTask] = useState<Task | null>(null);
-  const jiraFlow = Boolean(project?.jira_enabled && project?.jira_key);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaUrl = `${API_URL}/api/meetings/${meetingId}/media`;
@@ -306,9 +303,7 @@ export default function MeetingDetailPage({
                 <DraftTaskCard
                   key={task.id}
                   task={task}
-                  onApprove={() =>
-                    jiraFlow ? setPreviewTask(task) : patchTask.mutate({ id: task.id, status: "approved" })
-                  }
+                  onApprove={() => setPreviewTask(task)}
                   onReject={() => patchTask.mutate({ id: task.id, status: "rejected" })}
                   onFocus={
                     task.source_timestamp !== null

@@ -5,10 +5,19 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Meeting, MeetingStatus, Task, TranscriptSegment
+from app.db.models import (
+    KnowledgeStatus,
+    Meeting,
+    MeetingStatus,
+    Project,
+    Task,
+    TaskScreenshot,
+    TranscriptSegment,
+)
 from app.db.session import SessionLocal
 from app.llm.extraction import extract_tasks_for_meeting
 from app.pipeline.audio import extract_audio
+from app.pipeline.screenshots import generate_for_task, probe_video_duration
 from app.pipeline.transcribe import transcribe_meeting
 
 logger = logging.getLogger(__name__)
@@ -31,6 +40,17 @@ def sweep_interrupted(db: Session) -> None:
         logger.warning("sweeping interrupted meeting %s (was %s)", meeting.id, meeting.status)
         meeting.status = MeetingStatus.ERROR
         meeting.error_message = "Processing was interrupted by a server restart — press Retry."
+    db.commit()
+
+
+def sweep_interrupted_knowledge(db: Session) -> None:
+    """Mark distillation jobs stranded in `processing` (across a restart) as errored."""
+    for project in db.scalars(
+        select(Project).where(Project.knowledge_status == KnowledgeStatus.PROCESSING)
+    ):
+        logger.warning("sweeping interrupted knowledge init for project %s", project.id)
+        project.knowledge_status = KnowledgeStatus.ERROR
+        project.knowledge_error = "Init was interrupted by a server restart — press Init again."
     db.commit()
 
 
@@ -73,6 +93,8 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
             count = extract_tasks_for_meeting(db, meeting)
             logger.info("meeting %s: extracted %s tasks", meeting.id, count)
 
+        _generate_screenshots(db, meeting)
+
         meeting.progress = None
         meeting.processing_finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
         _set_status(db, meeting, MeetingStatus.DONE)
@@ -92,3 +114,35 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
 def _set_status(db: Session, meeting: Meeting, status: MeetingStatus) -> None:
     meeting.status = status
     db.commit()
+
+
+def _generate_screenshots(db: Session, meeting: Meeting) -> None:
+    """Best-effort frame capture for this meeting's timestamped tasks.
+
+    Never raises: a broken/audio-only video must not error a finished meeting.
+    Idempotent per task (skips tasks that already have screenshots) so a
+    retry/reextract does not duplicate frames.
+    """
+    try:
+        source = Path(meeting.media_path)
+        if not source.exists():
+            return
+        duration = meeting.duration_sec or probe_video_duration(source)
+        if duration is None:
+            return  # audio-only upload or unreadable video — nothing to capture
+        tasks = db.scalars(
+            select(Task).where(Task.meeting_id == meeting.id, Task.source_timestamp.is_not(None))
+        )
+        for task in tasks:
+            # Query (not the relationship) so a cached collection can never go stale.
+            has_frames = db.scalar(
+                select(TaskScreenshot.id).where(TaskScreenshot.task_id == task.id).limit(1)
+            )
+            if has_frames:
+                continue
+            for row in generate_for_task(task, source, duration):
+                db.add(row)
+        db.commit()
+    except Exception:  # noqa: BLE001 - screenshots are decoration, never fail the pipeline
+        logger.exception("screenshot generation failed for meeting %s", meeting.id)
+        db.rollback()

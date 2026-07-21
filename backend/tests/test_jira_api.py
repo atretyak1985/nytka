@@ -1,8 +1,11 @@
 """API + service tests for the Jira integration. Jira HTTP is stubbed at the
 app.jira.client function level via monkeypatch."""
+from pathlib import Path
+
 import pytest
 
-from app.db.models import Project, Task, TaskStatus
+from app.core.config import settings
+from app.db.models import Project, Task, TaskScreenshot, TaskStatus
 from app.jira import client as jira_client
 from app.jira import service as jira_service
 
@@ -65,7 +68,7 @@ def test_preview_without_creds(db_session):
 
 def test_push_success_records_key(db_session, jira_ready, monkeypatch):
     monkeypatch.setattr(jira_client, "find_user", lambda *a, **k: None)
-    monkeypatch.setattr(jira_client, "create_issue", lambda *a, **k: "CRM-7")
+    monkeypatch.setattr(jira_client, "create_issue", lambda *a, **k: ("CRM-7", []))
     task = make_task(db_session, jira_ready)
     jira_service.push_task(db_session, task)
     assert task.jira_issue_key == "CRM-7"
@@ -164,7 +167,7 @@ def test_approve_auto_pushes(client, db_session, monkeypatch):
     project = seed_creds_and_project(db_session)
     task = make_task(db_session, project)
     monkeypatch.setattr(jira_client, "find_user", lambda *a, **k: None)
-    monkeypatch.setattr(jira_client, "create_issue", lambda *a, **k: "CRM-9")
+    monkeypatch.setattr(jira_client, "create_issue", lambda *a, **k: ("CRM-9", []))
     body = client.patch(f"/api/tasks/{task.id}", json={"status": "approved"}).json()
     assert body["status"] == "approved"
     assert body["jira_issue_key"] == "CRM-9"
@@ -210,7 +213,7 @@ def test_manual_retry_push(client, db_session, monkeypatch):
     task.jira_sync_error = "Jira API 503: down"
     db_session.commit()
     monkeypatch.setattr(jira_client, "find_user", lambda *a, **k: None)
-    monkeypatch.setattr(jira_client, "create_issue", lambda *a, **k: "CRM-10")
+    monkeypatch.setattr(jira_client, "create_issue", lambda *a, **k: ("CRM-10", []))
     body = client.post(f"/api/tasks/{task.id}/jira-push").json()
     assert body["jira_issue_key"] == "CRM-10" and body["jira_sync_error"] is None
 
@@ -233,3 +236,133 @@ def test_push_survives_network_error(db_session, jira_ready, monkeypatch):
     task = make_task(db_session, jira_ready)
     jira_service.push_task(db_session, task)  # must not raise
     assert task.jira_issue_key is None and "ConnectError" in task.jira_sync_error
+
+
+# ---------------------------------------------------------------------------
+# Screenshot attachments on push
+# ---------------------------------------------------------------------------
+
+def add_screenshots(db_session, task, count=2) -> list[Path]:
+    """N TaskScreenshot rows for the task, each backed by a stub JPEG on disk."""
+    paths: list[Path] = []
+    for position in range(count):
+        path = settings.screenshots_dir / str(task.id) / f"frame_{position}.jpg"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"\xff\xd8jpegstub")
+        db_session.add(
+            TaskScreenshot(task_id=task.id, path=str(path), t_sec=float(position * 10), position=position)
+        )
+        paths.append(path)
+    db_session.commit()
+    return paths
+
+
+def test_push_uploads_screenshots_as_attachments(db_session, jira_ready, monkeypatch):
+    monkeypatch.setattr(jira_client, "find_user", lambda *a, **k: None)
+    monkeypatch.setattr(jira_client, "create_issue", lambda *a, **k: ("CRM-7", []))
+    calls = []
+    monkeypatch.setattr(jira_client, "add_attachments", lambda *a, **k: calls.append(a) or [])
+    task = make_task(db_session, jira_ready)
+    paths = add_screenshots(db_session, task, count=2)
+    jira_service.push_task(db_session, task)
+    assert len(calls) == 1
+    base_url, email, token, issue_key, sent_paths = calls[0]
+    assert issue_key == "CRM-7"
+    assert sent_paths == paths
+    assert task.jira_issue_key == "CRM-7"
+    assert task.jira_sync_error is None
+
+
+def test_push_attachment_failure_keeps_issue_key_and_warns(db_session, jira_ready, monkeypatch):
+    monkeypatch.setattr(jira_client, "find_user", lambda *a, **k: None)
+    monkeypatch.setattr(jira_client, "create_issue", lambda *a, **k: ("CRM-8", []))
+
+    def boom(*a, **k):
+        raise jira_client.JiraError("Jira attachments 413: too large")
+
+    monkeypatch.setattr(jira_client, "add_attachments", boom)
+    task = make_task(db_session, jira_ready)
+    add_screenshots(db_session, task, count=1)
+    jira_service.push_task(db_session, task)  # must not raise
+    assert task.jira_issue_key == "CRM-8"
+    assert task.jira_synced_at is not None
+    assert task.jira_sync_error.startswith("Created, but attachments failed:")
+    assert task.jira_sync_error == "Created, but attachments failed: Jira attachments 413: too large"
+
+
+def test_push_dropped_fields_and_attachment_failure_both_warn(db_session, jira_ready, monkeypatch):
+    monkeypatch.setattr(jira_client, "find_user", lambda *a, **k: None)
+    monkeypatch.setattr(jira_client, "create_issue", lambda *a, **k: ("CRM-9", ["priority"]))
+
+    def boom(*a, **k):
+        raise jira_client.JiraError("Jira attachments 403: no Attach permission")
+
+    monkeypatch.setattr(jira_client, "add_attachments", boom)
+    task = make_task(db_session, jira_ready)
+    add_screenshots(db_session, task, count=1)
+    jira_service.push_task(db_session, task)
+    assert task.jira_issue_key == "CRM-9"
+    assert task.jira_sync_error == (
+        "Created, but Jira dropped these fields on retry: priority; "
+        "attachments failed: Jira attachments 403: no Attach permission"
+    )
+
+
+def test_push_skips_screenshots_missing_on_disk(db_session, jira_ready, monkeypatch):
+    monkeypatch.setattr(jira_client, "find_user", lambda *a, **k: None)
+    monkeypatch.setattr(jira_client, "create_issue", lambda *a, **k: ("CRM-10", []))
+    calls = []
+    monkeypatch.setattr(jira_client, "add_attachments", lambda *a, **k: calls.append(a) or [])
+    task = make_task(db_session, jira_ready)
+    paths = add_screenshots(db_session, task, count=2)
+    paths[1].unlink()  # vanished between preview and push
+    jira_service.push_task(db_session, task)
+    assert len(calls) == 1
+    assert calls[0][4] == [paths[0]]
+    assert task.jira_sync_error is None
+
+
+def test_push_without_screenshots_never_calls_add_attachments(db_session, jira_ready, monkeypatch):
+    monkeypatch.setattr(jira_client, "find_user", lambda *a, **k: None)
+    monkeypatch.setattr(jira_client, "create_issue", lambda *a, **k: ("CRM-11", []))
+
+    def fail(*a, **k):
+        raise AssertionError("add_attachments must not be called for a task without screenshots")
+
+    monkeypatch.setattr(jira_client, "add_attachments", fail)
+    task = make_task(db_session, jira_ready)
+    jira_service.push_task(db_session, task)
+    assert task.jira_issue_key == "CRM-11"
+    assert task.jira_sync_error is None
+
+
+def test_jira_users_ok(client, jira_ready, monkeypatch):
+    monkeypatch.setattr(
+        jira_client,
+        "list_assignable_users",
+        lambda *a: [{"account_id": "acc-1", "display_name": "Ivan P"}],
+    )
+    body = client.get(f"/api/projects/{jira_ready.id}/jira-users").json()
+    assert body == {"ok": True, "users": [{"account_id": "acc-1", "display_name": "Ivan P"}], "error": None}
+
+
+def test_jira_users_without_creds(client, db_session):
+    project = db_session.query(Project).first()
+    project.jira_base_url = ""
+    project.jira_email = ""
+    project.jira_api_token = ""
+    db_session.commit()
+    body = client.get(f"/api/projects/{project.id}/jira-users").json()
+    assert body["ok"] is False
+    assert "not configured" in body["error"]
+
+
+def test_jira_users_jira_error_reports_message(client, jira_ready, monkeypatch):
+    monkeypatch.setattr(jira_client, "list_assignable_users", lambda *a: None)
+    body = client.get(f"/api/projects/{jira_ready.id}/jira-users").json()
+    assert body["ok"] is False
+    assert "Could not fetch users" in body["error"]
+
+
+def test_jira_users_unknown_project_404(client):
+    assert client.get("/api/projects/99999/jira-users").status_code == 404

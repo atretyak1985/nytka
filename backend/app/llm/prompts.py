@@ -6,6 +6,54 @@ and can be overridden globally; a project's AI context is layered on top at high
 """
 
 PROMPT_VERSION = "v2"
+DISTILL_PROMPT_VERSION = "v1"
+
+# Distillation ("Init"): condense a project's description + reference files into a compact
+# DOMAIN BACKGROUND brief for task extraction. The critical job is to KEEP product/domain
+# facts and DROP any interactive-agent workflow (phases, STOP/confirmation gates, tool-calling
+# steps, "push back on thin items") — that playbook language is what makes a local model
+# withhold extraction and return empty task lists.
+DISTILL_SYSTEM_PROMPT = """\
+You are compressing project reference material into a short DOMAIN BACKGROUND brief.
+This brief will later help another model extract work items (tasks, defects, decisions)
+from meeting transcripts. It is background knowledge, NOT a set of instructions to follow.
+
+From the source text, KEEP only what helps interpret a transcript of this project's meetings:
+- what the product is and what it does (1-3 sentences);
+- domain terminology and their meanings, and common mis-transcriptions of names/terms;
+- roles / people and what they do;
+- what this project considers a work item (e.g. "every observed defect is a task");
+- how this project judges priority (e.g. what counts as urgent / safety-relevant).
+
+DROP entirely (these are for a different, interactive workflow and must NOT appear in the brief):
+- process/workflow phases, step-by-step procedures, "STOP"/confirmation gates;
+- tool/integration instructions (Jira/Drive/API/scripts, ticket-creation steps, sprint ids, field names);
+- anything telling the reader to wait, ask, confirm, push back, or refrain from acting;
+- response-style or formatting directives aimed at an assistant.
+
+Write the brief as terse factual notes (short headings + bullets). No preamble, no meta-commentary.
+Output ONLY the brief text.
+"""
+
+# Reduce step: merge several partial briefs (one per source chunk) into one, de-duplicated.
+DISTILL_REDUCE_PROMPT = """\
+You are merging several partial DOMAIN BACKGROUND briefs about the SAME project into one.
+Combine them into a single compact brief: de-duplicate, keep every distinct product fact,
+term, role, work-item rule and priority rule. Same constraints as before — background facts
+only, drop any workflow/process/tool/confirmation instructions. Output ONLY the merged brief.
+"""
+
+# Area extraction (Feature B): pull the functional-area taxonomy out of the sources
+# (typically a "component map") as a clean list of "[Area][Sub-area]" strings.
+DISTILL_AREAS_PROMPT = """\
+From the project sources below, extract the functional AREA / SUB-AREA taxonomy the team uses
+to categorise defects and tasks (often given as a "component map" or area list).
+
+Return each entry as a bracketed string "[Area][Sub-area]" (or "[Area]" when there is no sub-area),
+using the exact names from the sources. Do NOT invent areas, do NOT abbreviate names, and do NOT
+include anything that is not an area/sub-area (no workflow steps, labels, or instructions).
+If the sources contain no area taxonomy, return an empty list.
+"""
 
 DEFAULT_SYSTEM_PROMPT = """\
 You are a senior business analyst processing a product-team meeting or demo transcript.
@@ -33,6 +81,15 @@ If the project provides specific focus below, follow it — it may narrow or red
 # Backwards-compatible alias.
 SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
 
+# ISO 639-1 -> name used in the prompt; unknown codes are passed through verbatim
+# so any language the user configures still works.
+LANGUAGE_NAMES = {
+    "uk": "Ukrainian",
+    "en": "English",
+    "pl": "Polish",
+    "de": "German",
+}
+
 
 def user_prompt(chunk: str, chunk_index: int, total_chunks: int) -> str:
     return (
@@ -46,6 +103,8 @@ def project_context_block(
     glossary: list[str],
     team: list[dict],
     task_format: str,
+    task_areas: list[str] | None = None,
+    task_language: str = "auto",
 ) -> str:
     """Per-project guidance from the Settings tab, injected as a system message.
 
@@ -63,6 +122,14 @@ def project_context_block(
 
     sections: list[str] = []
 
+    language = LANGUAGE_NAMES.get(task_language, task_language).strip()
+    if language and task_language != "auto":
+        sections.append(
+            f"Task language — write every task title and description in {language}, "
+            "regardless of the language spoken in the transcript. Keep product terms, "
+            "component names, and people's names as-is."
+        )
+
     terms = ", ".join(g.strip() for g in glossary if g.strip())
     if terms:
         sections.append(
@@ -77,14 +144,30 @@ def project_context_block(
     )
     if members:
         sections.append(
-            "Team — set each task's assignee ONLY to one of these people, using their exact "
-            f"name; use null if none clearly fits: {members}."
+            "Team — assignee policy. Allowed assignees (use the EXACT name as written here): "
+            f"{members}.\n"
+            "When the discussion connects a work item to one of these people, set assignee to "
+            "that person. The connection may be explicit (they volunteered, agreed, or were "
+            "asked to do it) or clear from context: they reported/demoed the item, it concerns "
+            "their component or role, or they are addressed by name about it. Mentions may be "
+            "a first name only, an inflected form, or a different alphabet (e.g. «Віктор» for "
+            "'Victor …') — map such mentions to the matching person from the list.\n"
+            "Set assignee to null ONLY when nobody from the list is connected to the item. "
+            "Never assign a person who is not on the list."
         )
 
     if task_format.strip():
         sections.append(
             "Preferred task description format — follow it for the description field when the "
             f"content allows:\n{task_format.strip()}"
+        )
+
+    areas = [a.strip() for a in (task_areas or []) if a.strip()]
+    if areas:
+        sections.append(
+            "Functional areas — set each task's `area` to EXACTLY one value copied verbatim from "
+            "this closed list, or null if none clearly fits. Never invent or abbreviate an area:\n"
+            + "\n".join(f"- {a}" for a in areas)
         )
 
     blocks: list[str] = []

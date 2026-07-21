@@ -1,15 +1,19 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.schemas import JiraPreviewOut, TaskCreateIn, TaskOut, TaskPatchIn
-from app.db.models import Project, Task, TaskStatus
+from app.api.schemas import JiraPreviewOut, TaskCreateIn, TaskOut, TaskPatchIn, TaskScreenshotOut
+from app.db.models import Project, Task, TaskScreenshot, TaskStatus
 from app.db.session import get_db
 from app.jira.service import build_preview, jira_enabled_for, push_task
+from app.pipeline.screenshots import delete_screenshot_files
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
-NON_NULLABLE_FIELDS = {"title", "description", "priority"}
+NON_NULLABLE_FIELDS = {"title", "description", "priority", "labels"}
 
 ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.DRAFT: {TaskStatus.APPROVED, TaskStatus.REJECTED},
@@ -93,10 +97,44 @@ def jira_push(task_id: int, db: Session = Depends(get_db)) -> Task:
     return task
 
 
+def _get_screenshot(db: Session, task_id: int, screenshot_id: int) -> TaskScreenshot:
+    shot = db.get(TaskScreenshot, screenshot_id)
+    if shot is None or shot.task_id != task_id:
+        raise HTTPException(404, "Screenshot not found")
+    return shot
+
+
+@router.get("/{task_id}/screenshots", response_model=list[TaskScreenshotOut])
+def list_screenshots(task_id: int, db: Session = Depends(get_db)) -> list[TaskScreenshot]:
+    task = db.get(Task, task_id)
+    if task is None:
+        raise HTTPException(404, "Task not found")
+    return task.screenshots  # ordered by position via the relationship
+
+
+@router.get("/{task_id}/screenshots/{screenshot_id}/image")
+def get_screenshot_image(task_id: int, screenshot_id: int, db: Session = Depends(get_db)) -> FileResponse:
+    shot = _get_screenshot(db, task_id, screenshot_id)
+    path = Path(shot.path)
+    if not path.exists():
+        raise HTTPException(404, "Screenshot file not found")
+    return FileResponse(path, media_type="image/jpeg", content_disposition_type="inline")
+
+
+@router.delete("/{task_id}/screenshots/{screenshot_id}", status_code=204)
+def delete_screenshot(task_id: int, screenshot_id: int, db: Session = Depends(get_db)) -> None:
+    """User curation from the approve dialog: drop one frame permanently."""
+    shot = _get_screenshot(db, task_id, screenshot_id)
+    Path(shot.path).unlink(missing_ok=True)
+    db.delete(shot)
+    db.commit()
+
+
 @router.delete("/{task_id}", status_code=204)
 def delete_task(task_id: int, db: Session = Depends(get_db)) -> None:
     task = db.get(Task, task_id)
     if task is None:
         raise HTTPException(404, "Task not found")
+    delete_screenshot_files(task)
     db.delete(task)
     db.commit()

@@ -6,6 +6,7 @@ from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.knowledge import router as knowledge_router
 from app.api.meetings import router as meetings_router
 from app.api.projects import router as projects_router
 from app.api.settings import router as settings_router
@@ -13,7 +14,7 @@ from app.api.tasks import router as tasks_router
 from app.core.config import settings
 from app.db.seed import ensure_app_settings, ensure_default_project
 from app.db.session import SessionLocal
-from app.pipeline.runner import sweep_interrupted
+from app.pipeline.runner import sweep_interrupted, sweep_interrupted_knowledge
 
 
 def run_migrations() -> None:
@@ -28,10 +29,13 @@ async def lifespan(app: FastAPI):
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     run_migrations()
     settings.media_dir.mkdir(parents=True, exist_ok=True)
+    settings.knowledge_dir.mkdir(parents=True, exist_ok=True)
+    settings.screenshots_dir.mkdir(parents=True, exist_ok=True)
     with SessionLocal() as db:
         ensure_default_project(db)
         ensure_app_settings(db)
         sweep_interrupted(db)
+        sweep_interrupted_knowledge(db)
     yield
 
 
@@ -50,6 +54,7 @@ app.include_router(meetings_router)
 app.include_router(tasks_router)
 app.include_router(projects_router)
 app.include_router(settings_router)
+app.include_router(knowledge_router)
 
 
 @app.get("/api/health")

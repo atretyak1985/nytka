@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
-from app.db.models import Meeting, MeetingStatus, Task, TaskStatus, TranscriptSegment
+from app.db.models import Meeting, MeetingStatus, Task, TaskScreenshot, TaskStatus, TranscriptSegment
 from app.db.seed import ensure_default_project
 
 
@@ -36,3 +36,23 @@ def test_meeting_task_segment_relations() -> None:
         assert task.status == TaskStatus.DRAFT
         assert meeting.segments[0].speaker is None
         assert meeting.tasks[0].title == "Do thing"
+
+
+def test_task_screenshots_ordering_and_cascade() -> None:
+    with make_session() as db:
+        project = ensure_default_project(db)
+        task = Task(project_id=project.id, title="With frames")
+        # Append out of order to prove the relationship orders by position.
+        task.screenshots = [
+            TaskScreenshot(path="/tmp/frame_1.jpg", t_sec=70.0, position=1),
+            TaskScreenshot(path="/tmp/frame_0.jpg", t_sec=60.0, position=0),
+        ]
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        assert [s.position for s in task.screenshots] == [0, 1]
+        assert [s.path for s in task.screenshots] == ["/tmp/frame_0.jpg", "/tmp/frame_1.jpg"]
+
+        db.delete(task)
+        db.commit()
+        assert db.query(TaskScreenshot).count() == 0  # ORM cascade removed the rows

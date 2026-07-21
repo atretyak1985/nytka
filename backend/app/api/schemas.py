@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.db.models import MeetingStatus, TaskPriority, TaskStatus
+from app.db.models import KnowledgeStatus, MeetingStatus, TaskPriority, TaskStatus
 
 
 class SegmentOut(BaseModel):
@@ -21,6 +21,8 @@ class TaskOut(BaseModel):
     meeting_id: int | None
     title: str
     description: str
+    area: str
+    labels: list[str]
     assignee: str | None
     priority: TaskPriority
     status: TaskStatus
@@ -30,6 +32,16 @@ class TaskOut(BaseModel):
     jira_issue_key: str | None
     jira_synced_at: datetime | None
     jira_sync_error: str | None
+
+
+class TaskScreenshotOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    task_id: int
+    t_sec: float
+    position: int
+    created_at: datetime
+    # path intentionally excluded — server filesystem detail (like llm_api_key in ProjectOut)
 
 
 class MeetingOut(BaseModel):
@@ -64,6 +76,8 @@ class TaskCreateIn(BaseModel):
 class TaskPatchIn(BaseModel):
     title: str | None = None
     description: str | None = None
+    area: str | None = None
+    labels: list[str] | None = None
     assignee: str | None = None
     priority: TaskPriority | None = None
     status: TaskStatus | None = None
@@ -85,9 +99,15 @@ class ProjectOut(BaseModel):
     ai_context: str
     task_prefix: str
     task_format: str
+    task_language: str
+    task_areas: list[str]
     glossary: list[str]
     team: list[TeamMember]
     jira_enabled: bool
+    jira_static_labels: list[str]
+    jira_demo_label: bool
+    jira_sprint_field: str
+    jira_sprint_id: int | None
     jira_key: str
     jira_base_url: str
     jira_email: str
@@ -96,6 +116,11 @@ class ProjectOut(BaseModel):
     llm_provider: str
     llm_model: str
     llm_base_url: str | None
+    knowledge_status: KnowledgeStatus
+    knowledge_brief: str
+    knowledge_error: str | None
+    knowledge_generated_at: datetime | None
+    knowledge_stale: bool
     created_at: datetime
     updated_at: datetime
     # llm_api_key intentionally excluded from responses
@@ -115,9 +140,15 @@ class ProjectPatchIn(BaseModel):
     ai_context: str | None = None
     task_prefix: str | None = None
     task_format: str | None = None
+    task_language: str | None = None
+    task_areas: list[str] | None = None
     glossary: list[str] | None = None
     team: list[TeamMember] | None = None
     jira_enabled: bool | None = None
+    jira_static_labels: list[str] | None = None
+    jira_demo_label: bool | None = None
+    jira_sprint_field: str | None = None
+    jira_sprint_id: int | None = None
     jira_key: str | None = None
     jira_base_url: str | None = None
     jira_email: str | None = None
@@ -148,6 +179,17 @@ class JiraTestOut(BaseModel):
     error: str | None = None
 
 
+class JiraUserOut(BaseModel):
+    account_id: str
+    display_name: str
+
+
+class JiraUsersOut(BaseModel):
+    ok: bool
+    users: list[JiraUserOut] = []
+    error: str | None = None
+
+
 class JiraPreviewOut(BaseModel):
     ok: bool
     project_key: str | None = None
@@ -155,6 +197,9 @@ class JiraPreviewOut(BaseModel):
     summary: str | None = None
     description: str | None = None
     priority: str | None = None
+    labels: list[str] = []
+    sprint_id: int | None = None
+    area: str | None = None
     assignee_query: str | None = None
     assignee_found: bool = False
     assignee_display_name: str | None = None
@@ -166,3 +211,24 @@ class LlmConnectOut(BaseModel):
     models: list[str] = []
     model: str | None = None
     error: str | None = None
+
+
+class KnowledgeFileOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    project_id: int
+    filename: str
+    kind: str
+    size_bytes: int
+    created_at: datetime
+
+
+class KnowledgeStateOut(BaseModel):
+    """Knowledge-base status for a project, returned alongside its files."""
+    model_config = ConfigDict(from_attributes=True)
+    knowledge_status: KnowledgeStatus
+    knowledge_brief: str
+    knowledge_error: str | None
+    knowledge_generated_at: datetime | None
+    knowledge_stale: bool
+    files: list[KnowledgeFileOut]

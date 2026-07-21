@@ -12,13 +12,11 @@ import { useProject } from "@/features/projects/hooks";
 import { JiraApproveDialog } from "@/features/tasks/JiraApproveDialog";
 import { toast } from "sonner";
 
-type Filter = "all" | "draft" | "approved" | "done" | "rejected";
+type Filter = "all" | "draft" | "rejected";
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "draft", label: "To review" },
-  { key: "approved", label: "Approved" },
-  { key: "done", label: "Done" },
   { key: "rejected", label: "Rejected" },
 ];
 
@@ -34,7 +32,6 @@ export function TasksTab({ projectId }: { projectId: number }) {
   const { data: project } = useProject(projectId);
   const jiraPush = useJiraPush();
   const [previewTask, setPreviewTask] = useState<Task | null>(null);
-  const jiraFlow = Boolean(project?.jira_enabled && project?.jira_key);
 
   const meetingTitleById = useMemo(() => new Map((meetings ?? []).map((m) => [m.id, m.title])), [meetings]);
 
@@ -42,8 +39,6 @@ export function TasksTab({ projectId }: { projectId: number }) {
   const counts: Record<Filter, number> = {
     all: tasks.length,
     draft: tasks.filter((t) => t.status === "draft").length,
-    approved: tasks.filter((t) => t.status === "approved").length,
-    done: tasks.filter((t) => t.status === "done").length,
     rejected: tasks.filter((t) => t.status === "rejected").length,
   };
 
@@ -67,9 +62,11 @@ export function TasksTab({ projectId }: { projectId: number }) {
     patchTask.mutate({ id, status: to });
   };
 
+  // Always open the preview dialog: it shows extracted screenshots (Jira-independent)
+  // and, when Jira is configured, the issue preview. The dialog itself degrades
+  // gracefully (offers "Approve without Jira") when Jira isn't set up.
   const handleApprove = (task: Task) => {
-    if (jiraFlow) setPreviewTask(task);
-    else patchTask.mutate({ id: task.id, status: "approved" });
+    setPreviewTask(task);
   };
 
   const handleDelete = (id: number) => {
@@ -122,6 +119,7 @@ export function TasksTab({ projectId }: { projectId: number }) {
                 task={task}
                 meetingTitle={task.meeting_id ? meetingTitleById.get(task.meeting_id) : undefined}
                 projectId={projectId}
+                areas={project?.task_areas ?? []}
                 onApprove={() => handleApprove(task)}
                 onReject={() => handleStatusChange(task.id, "rejected")}
               />
@@ -185,16 +183,19 @@ function DraftCard({
   task,
   meetingTitle,
   projectId,
+  areas,
   onApprove,
   onReject,
 }: {
   task: Task;
   meetingTitle: string | undefined;
   projectId: number;
+  areas: string[];
   onApprove: () => void;
   onReject: () => void;
 }) {
   const priority = TASK_PRIORITY[task.priority];
+  const patchTask = usePatchTask();
   return (
     <div className="grid grid-cols-[1fr_auto] items-start gap-4 rounded-bb-frame border border-bb-line bg-bb-surface px-5 py-4">
       <div className="min-w-0">
@@ -211,6 +212,21 @@ function DraftCard({
           <span className="font-mono text-[10px] tracking-[0.06em] text-bb-ink-2 uppercase">
             {task.assignee || "not assigned"}
           </span>
+          {areas.length > 0 && (
+            <select
+              aria-label="Area"
+              value={task.area}
+              onChange={(e) => patchTask.mutate({ id: task.id, area: e.target.value })}
+              className="h-6 rounded-bb-btn border border-bb-line bg-bb-paper px-1.5 font-mono text-[10px] text-bb-ink outline-none focus-visible:border-bb-burgundy"
+            >
+              <option value="">— no area —</option>
+              {areas.map((area) => (
+                <option key={area} value={area}>
+                  {area}
+                </option>
+              ))}
+            </select>
+          )}
           {task.meeting_id && meetingTitle && (
             <Link
               href={`/projects/${projectId}/meetings/${task.meeting_id}${task.source_timestamp !== null ? `?seg=${task.source_timestamp}` : ""}`}

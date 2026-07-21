@@ -91,11 +91,12 @@ def test_create_issue_returns_key(monkeypatch):
         return httpx.Response(201, json={"key": "CRM-42"})
 
     patch_client(monkeypatch, handler)
-    key = jira_client.create_issue(
+    key, dropped = jira_client.create_issue(
         "https://acme.atlassian.net", "a@b.c", "tok",
         {"project": {"key": "CRM"}, "summary": "S", "issuetype": {"name": "Task"}},
     )
     assert key == "CRM-42"
+    assert dropped == []
 
 
 def test_create_issue_retries_minimal_payload_on_400(monkeypatch):
@@ -108,7 +109,7 @@ def test_create_issue_retries_minimal_payload_on_400(monkeypatch):
         return httpx.Response(201, json={"key": "CRM-43"})
 
     patch_client(monkeypatch, handler)
-    key = jira_client.create_issue(
+    key, dropped = jira_client.create_issue(
         "https://acme.atlassian.net", "a@b.c", "tok",
         {
             "project": {"key": "CRM"}, "summary": "S", "issuetype": {"name": "Task"},
@@ -117,6 +118,7 @@ def test_create_issue_retries_minimal_payload_on_400(monkeypatch):
         },
     )
     assert key == "CRM-43"
+    assert dropped == ["assignee", "priority"]
     assert len(calls) == 2
     assert b"priority" not in calls[1]
 
@@ -162,3 +164,91 @@ def test_create_issue_translates_network_error_to_jira_error(monkeypatch):
             "https://acme.atlassian.net", "a@b.c", "tok",
             {"project": {"key": "CRM"}, "summary": "S", "issuetype": {"name": "Task"}},
         )
+
+
+# ---------------------------------------------------------------------------
+# add_attachments
+# ---------------------------------------------------------------------------
+
+def test_add_attachments_posts_multipart_with_no_check_header(monkeypatch, tmp_path):
+    (tmp_path / "frame_0.jpg").write_bytes(b"\xff\xd8one")
+    (tmp_path / "frame_1.jpg").write_bytes(b"\xff\xd8two")
+    captured = {}
+
+    def handler(request):
+        captured["path"] = request.url.path
+        captured["token_header"] = request.headers.get("X-Atlassian-Token")
+        captured["body"] = request.read()
+        return httpx.Response(200, json=[{"filename": "frame_0.jpg"}, {"filename": "frame_1.jpg"}])
+
+    patch_client(monkeypatch, handler)
+    names = jira_client.add_attachments(
+        "https://acme.atlassian.net", "a@b.c", "tok", "CRM-42",
+        [tmp_path / "frame_0.jpg", tmp_path / "frame_1.jpg"],
+    )
+    assert names == ["frame_0.jpg", "frame_1.jpg"]
+    assert captured["path"] == "/rest/api/3/issue/CRM-42/attachments"
+    assert captured["token_header"] == "no-check"
+    assert b"frame_0.jpg" in captured["body"] and b"frame_1.jpg" in captured["body"]
+
+
+def test_add_attachments_non_200_raises_jira_error(monkeypatch, tmp_path):
+    (tmp_path / "f.jpg").write_bytes(b"\xff\xd8x")
+    patch_client(monkeypatch, lambda request: httpx.Response(413, text="Request entity too large"))
+    with pytest.raises(jira_client.JiraError):
+        jira_client.add_attachments(
+            "https://acme.atlassian.net", "a@b.c", "tok", "CRM-42", [tmp_path / "f.jpg"]
+        )
+
+
+def test_add_attachments_transport_error_raises_jira_error(monkeypatch, tmp_path):
+    (tmp_path / "f.jpg").write_bytes(b"\xff\xd8x")
+
+    def handler(request):
+        raise httpx.ConnectError("boom")
+
+    patch_client(monkeypatch, handler)
+    with pytest.raises(jira_client.JiraError):
+        jira_client.add_attachments(
+            "https://acme.atlassian.net", "a@b.c", "tok", "CRM-42", [tmp_path / "f.jpg"]
+        )
+
+
+def test_add_attachments_empty_list_returns_empty_without_http(monkeypatch):
+    def handler(request):
+        raise AssertionError("no HTTP call expected for an empty paths list")
+
+    patch_client(monkeypatch, handler)
+    assert jira_client.add_attachments("https://acme.atlassian.net", "a@b.c", "tok", "CRM-42", []) == []
+
+
+def test_list_assignable_users_filters_apps_and_maps_fields(monkeypatch):
+    def handler(request):
+        assert request.url.path == "/rest/api/3/user/assignable/search"
+        assert request.url.params["project"] == "CRM"
+        return httpx.Response(200, json=[
+            {"accountId": "acc-1", "displayName": "Ivan P", "accountType": "atlassian"},
+            {"accountId": "acc-bot", "displayName": "Automation", "accountType": "app"},
+            {"displayName": "No Id"},
+            {"accountId": "acc-2", "displayName": "Olena K"},
+        ])
+
+    patch_client(monkeypatch, handler)
+    users = jira_client.list_assignable_users("https://acme.atlassian.net", "a@b.c", "tok", "CRM")
+    assert users == [
+        {"account_id": "acc-1", "display_name": "Ivan P"},
+        {"account_id": "acc-2", "display_name": "Olena K"},
+    ]
+
+
+def test_list_assignable_users_error_returns_none(monkeypatch):
+    def handler(request):
+        raise httpx.ConnectError("boom")
+
+    patch_client(monkeypatch, handler)
+    assert jira_client.list_assignable_users("https://acme.atlassian.net", "a@b.c", "tok", "CRM") is None
+
+
+def test_list_assignable_users_non_list_payload_returns_none(monkeypatch):
+    patch_client(monkeypatch, lambda request: httpx.Response(200, json={"unexpected": "shape"}))
+    assert jira_client.list_assignable_users("https://acme.atlassian.net", "a@b.c", "tok", "CRM") is None

@@ -1,19 +1,26 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CircleCheckIcon, Loader2Icon, OctagonXIcon, Sparkles, X } from "lucide-react";
-import type { Project, TeamMember } from "@/lib/client";
+import { CircleCheckIcon, CloudDownload, Loader2Icon, OctagonXIcon, Sparkles, X } from "lucide-react";
+import { api, type Project, type TeamMember } from "@/lib/client";
 import { LLM_PROVIDERS, LMSTUDIO_BASE_URL, isLocalProvider, normalizeLlmProvider } from "@/lib/design-maps";
 import { useJiraTest, useLlmConnect, usePatchProject } from "@/features/projects/hooks";
+import { KnowledgeBase } from "@/features/settings/KnowledgeBase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface FormState {
   aiContext: string;
   taskPrefix: string;
   taskFormat: string;
+  taskLanguage: string;
   glossary: string[];
   team: TeamMember[];
+  staticLabels: string[];
+  demoLabel: boolean;
+  sprintField: string;
+  sprintId: string; // text input; parsed to number | null on save
   llmProvider: string;
   llmModel: string;
   llmBaseUrl: string;
@@ -30,8 +37,13 @@ function toFormState(project: Project): FormState {
     aiContext: project.ai_context,
     taskPrefix: project.task_prefix,
     taskFormat: project.task_format,
+    taskLanguage: project.task_language,
     glossary: project.glossary,
     team: project.team,
+    staticLabels: project.jira_static_labels,
+    demoLabel: project.jira_demo_label,
+    sprintField: project.jira_sprint_field,
+    sprintId: project.jira_sprint_id != null ? String(project.jira_sprint_id) : "",
     llmProvider,
     llmModel: project.llm_model,
     // Use the stored server URL as-is (LM Studio can be on any host/port); only fall
@@ -51,8 +63,13 @@ function toPatchPayload(form: FormState) {
     ai_context: form.aiContext,
     task_prefix: form.taskPrefix,
     task_format: form.taskFormat,
+    task_language: form.taskLanguage,
     glossary: form.glossary,
     team: form.team,
+    jira_static_labels: form.staticLabels,
+    jira_demo_label: form.demoLabel,
+    jira_sprint_field: form.sprintField.trim(),
+    jira_sprint_id: form.sprintId.trim() ? Number(form.sprintId.trim()) : null,
     llm_provider: form.llmProvider,
     llm_model: form.llmModel,
     llm_base_url: form.llmBaseUrl || null,
@@ -69,6 +86,14 @@ export function SettingsTab({ project }: { project: Project }) {
   const [form, setForm] = useState<FormState>(() => toFormState(project));
   const [glossaryDraft, setGlossaryDraft] = useState("");
   const [teamDraft, setTeamDraft] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+  const { data: jiraUsers, isLoading: jiraUsersLoading } = useQuery({
+    queryKey: ["jira-users", project.id],
+    queryFn: () => api.listJiraUsers(project.id),
+    enabled: importOpen,
+    staleTime: 5 * 60 * 1000,
+  });
+  const [labelDraft, setLabelDraft] = useState("");
   const patchProject = usePatchProject();
   const llmConnect = useLlmConnect();
   const jiraTest = useJiraTest();
@@ -83,17 +108,36 @@ export function SettingsTab({ project }: { project: Project }) {
   } | null>(null);
   const [testingJira, setTestingJira] = useState(false);
 
-  // Re-sync local form state when the underlying project changes from elsewhere (e.g. after
-  // save). Adjusting state during render is React's recommended alternative to a syncing effect.
+  // Re-sync local form state when the underlying project DATA changes (e.g. after save).
+  // Compare id/updated_at, not object identity: the projects query refetches in the
+  // background (window focus, invalidation from other tabs) and returns new object
+  // identities with identical data — resetting on those wipes unsaved edits.
   const [syncedProject, setSyncedProject] = useState(project);
-  if (project !== syncedProject) {
+  if (project.id !== syncedProject.id || project.updated_at !== syncedProject.updated_at) {
     setSyncedProject(project);
     setForm(toFormState(project));
   }
 
   const handleSave = () => {
+    // Fold un-committed draft inputs in first, so "type + click Save" works
+    // the same as "type + Enter + Save".
+    const label = labelDraft.trim().toLowerCase().replace(/\s+/g, "-");
+    const term = glossaryDraft.trim();
+    const teamRaw = teamDraft.trim();
+    const [name, role] = teamRaw.split(/\s*—\s*|\s+-\s+/);
+    const effective: FormState = {
+      ...form,
+      staticLabels:
+        label && !form.staticLabels.includes(label) ? [...form.staticLabels, label] : form.staticLabels,
+      glossary: term && !form.glossary.includes(term) ? [...form.glossary, term] : form.glossary,
+      team: teamRaw && name ? [...form.team, { name: name.trim(), role: (role ?? "").trim() }] : form.team,
+    };
+    setForm(effective);
+    setLabelDraft("");
+    setGlossaryDraft("");
+    setTeamDraft("");
     patchProject.mutate(
-      { id: project.id, ...toPatchPayload(form) },
+      { id: project.id, ...toPatchPayload(effective) },
       {
         onSuccess: () => toast.success("Settings saved"),
         onError: (e) => toast.error(e.message),
@@ -161,6 +205,17 @@ export function SettingsTab({ project }: { project: Project }) {
     setGlossaryDraft("");
   };
 
+  const addStaticLabel = () => {
+    // Jira labels cannot contain spaces — normalise on add.
+    const label = labelDraft.trim().toLowerCase().replace(/\s+/g, "-");
+    if (!label || form.staticLabels.includes(label)) {
+      setLabelDraft("");
+      return;
+    }
+    setForm((f) => ({ ...f, staticLabels: [...f.staticLabels, label] }));
+    setLabelDraft("");
+  };
+
   const addTeamMember = () => {
     const raw = teamDraft.trim();
     if (!raw) return;
@@ -178,10 +233,11 @@ export function SettingsTab({ project }: { project: Project }) {
         <section className="rounded-bb-frame border border-bb-line bg-bb-surface p-5 lg:col-span-2">
           <div className="mb-1 flex items-center gap-2.5">
             <Sparkles className="size-[15px] text-bb-brand" aria-hidden="true" />
-            <h3 className="m-0 text-sm font-semibold text-bb-ink">AI context</h3>
+            <h3 className="m-0 text-sm font-semibold text-bb-ink">Project description</h3>
           </div>
           <p className="m-0 mb-3 text-xs text-bb-muted">
-            Added to the prompt when extracting tasks from a transcript — describe the product, roles, and conventions.
+            Describe the product, roles, and conventions. Saved as a source for the knowledge base
+            below — press Init there to distill it (plus any files) into the brief used for extraction.
           </p>
           <textarea
             value={form.aiContext}
@@ -192,9 +248,11 @@ export function SettingsTab({ project }: { project: Project }) {
           />
         </section>
 
+        <KnowledgeBase projectId={project.id} />
+
         <section className="rounded-bb-frame border border-bb-line bg-bb-surface p-5">
           <h3 className="m-0 mb-1 text-sm font-semibold text-bb-ink">Task template</h3>
-          <p className="m-0 mb-3 text-xs text-bb-muted">Each extracted task gets a prefix and a description format.</p>
+          <p className="m-0 mb-3 text-xs text-bb-muted">Each extracted task gets a prefix, a language and a description format.</p>
           <div className="flex flex-col gap-2.5">
             <div className="flex items-center gap-2.5">
               <span className="w-[70px] shrink-0 font-mono text-[10px] tracking-[0.08em] text-bb-muted uppercase">Prefix</span>
@@ -205,6 +263,24 @@ export function SettingsTab({ project }: { project: Project }) {
                 className="h-8 w-[110px] rounded-bb-btn border border-bb-line bg-bb-paper px-2.5 font-mono text-xs text-bb-ink outline-none focus-visible:border-bb-burgundy"
               />
             </div>
+            <div className="flex items-center gap-2.5">
+              <span className="w-[70px] shrink-0 font-mono text-[10px] tracking-[0.08em] text-bb-muted uppercase">Language</span>
+              <Select
+                value={form.taskLanguage}
+                onValueChange={(value) => setForm((f) => ({ ...f, taskLanguage: value ?? "auto" }))}
+              >
+                <SelectTrigger className="h-8 w-[220px] rounded-bb-btn border-bb-line bg-bb-paper text-xs text-bb-ink">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto — match the meeting</SelectItem>
+                  <SelectItem value="uk">Ukrainian</SelectItem>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="pl">Polish</SelectItem>
+                  <SelectItem value="de">German</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <textarea
               value={form.taskFormat}
               onChange={(e) => setForm((f) => ({ ...f, taskFormat: e.target.value }))}
@@ -213,6 +289,98 @@ export function SettingsTab({ project }: { project: Project }) {
               className="w-full resize-y rounded-bb-btn border border-bb-line bg-bb-paper px-3 py-2.5 text-[12.5px] leading-relaxed text-bb-ink outline-none focus-visible:border-bb-burgundy"
             />
           </div>
+        </section>
+
+        <section className="rounded-bb-frame border border-bb-line bg-bb-surface p-5 lg:col-span-2">
+          <h3 className="m-0 mb-1 text-sm font-semibold text-bb-ink">Jira ticket template</h3>
+          <p className="m-0 mb-3 text-xs text-bb-muted">
+            How tasks are shaped when pushed to Jira: labels, sprint, and area-based titles.
+          </p>
+
+          <label className="mb-1 block font-mono text-[10px] tracking-[0.08em] text-bb-muted uppercase">
+            Static labels (every ticket)
+          </label>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {form.staticLabels.map((label, i) => (
+              <span
+                key={`${label}-${i}`}
+                className="inline-flex items-center gap-1.5 rounded-md bg-bb-surface-2 py-1 pr-1 pl-2.5 font-mono text-[11px] text-bb-ink-2"
+              >
+                {label}
+                <button
+                  type="button"
+                  aria-label={`Remove ${label}`}
+                  onClick={() =>
+                    setForm((f) => ({ ...f, staticLabels: f.staticLabels.filter((_, idx) => idx !== i) }))
+                  }
+                  className="flex size-4 items-center justify-center rounded text-bb-muted hover:text-bb-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy"
+                >
+                  <X className="size-2.5" aria-hidden="true" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <input
+            value={labelDraft}
+            onChange={(e) => setLabelDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addStaticLabel();
+              }
+            }}
+            placeholder="Add a label — Enter (e.g. aware-created-by-robots)"
+            className="mb-3 h-8 w-full rounded-bb-btn border border-bb-line bg-bb-paper px-2.5 text-[12.5px] text-bb-ink outline-none focus-visible:border-bb-burgundy"
+          />
+
+          <label className="mb-3 flex items-center gap-2 text-[12.5px] text-bb-ink">
+            <input
+              type="checkbox"
+              checked={form.demoLabel}
+              onChange={(e) => setForm((f) => ({ ...f, demoLabel: e.target.checked }))}
+              className="size-3.5 accent-bb-brand"
+            />
+            Add a <code className="font-mono text-[11px] text-bb-ink-2">demo-YYYY-MM-DD</code> label from the meeting date
+          </label>
+
+          <div className="mb-3 flex flex-wrap items-center gap-2.5">
+            <span className="w-[70px] shrink-0 font-mono text-[10px] tracking-[0.08em] text-bb-muted uppercase">Sprint</span>
+            <input
+              value={form.sprintField}
+              onChange={(e) => setForm((f) => ({ ...f, sprintField: e.target.value }))}
+              placeholder="customfield_10020"
+              aria-label="Sprint custom field"
+              className="h-8 w-[190px] rounded-bb-btn border border-bb-line bg-bb-paper px-2.5 font-mono text-xs text-bb-ink outline-none focus-visible:border-bb-burgundy"
+            />
+            <input
+              value={form.sprintId}
+              onChange={(e) => setForm((f) => ({ ...f, sprintId: e.target.value.replace(/[^0-9]/g, "") }))}
+              placeholder="sprint id"
+              inputMode="numeric"
+              aria-label="Sprint id"
+              className="h-8 w-[100px] rounded-bb-btn border border-bb-line bg-bb-paper px-2.5 font-mono text-xs text-bb-ink outline-none focus-visible:border-bb-burgundy"
+            />
+          </div>
+
+          <label className="mb-1 block font-mono text-[10px] tracking-[0.08em] text-bb-muted uppercase">
+            Areas (from knowledge base — read-only)
+          </label>
+          {project.task_areas.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {project.task_areas.map((area) => (
+                <span
+                  key={area}
+                  className="rounded-md bg-bb-surface-2 px-2 py-1 font-mono text-[11px] text-bb-ink-2"
+                >
+                  {area}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="m-0 text-xs text-bb-muted">
+              None yet — run Init in the knowledge base to extract areas from the component map.
+            </p>
+          )}
         </section>
 
         <section className="rounded-bb-frame border border-bb-line bg-bb-surface p-5">
@@ -275,6 +443,61 @@ export function SettingsTab({ project }: { project: Project }) {
                 </button>
               </div>
             ))}
+          </div>
+          <div className="mb-2.5">
+            {!importOpen ? (
+              <button
+                type="button"
+                onClick={() => setImportOpen(true)}
+                className="flex items-center gap-1.5 rounded-bb-btn border border-bb-line px-2.5 py-1.5 text-xs font-medium text-bb-ink transition-colors hover:bg-bb-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy"
+              >
+                <CloudDownload className="size-3.5 text-bb-muted" aria-hidden="true" />
+                Import from Jira
+              </button>
+            ) : jiraUsersLoading ? (
+              <span className="flex items-center gap-1.5 text-xs text-bb-muted" role="status">
+                <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
+                Loading Jira users…
+              </span>
+            ) : jiraUsers?.ok ? (
+              (() => {
+                const suggestions = jiraUsers.users.filter((u) => !form.team.some((m) => m.name === u.display_name));
+                return suggestions.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {suggestions.map((user) => (
+                      <button
+                        key={user.account_id}
+                        type="button"
+                        onClick={() =>
+                          setForm((f) => ({ ...f, team: [...f.team, { name: user.display_name, role: "" }] }))
+                        }
+                        className="rounded-md border border-bb-line bg-bb-paper px-2 py-1 text-xs text-bb-ink-2 transition-colors hover:border-bb-burgundy hover:text-bb-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy"
+                      >
+                        + {user.display_name}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((f) => ({
+                          ...f,
+                          team: [...f.team, ...suggestions.map((u) => ({ name: u.display_name, role: "" }))],
+                        }))
+                      }
+                      className="rounded-md px-2 py-1 font-mono text-[10.5px] tracking-[0.06em] text-bb-burgundy uppercase transition-colors hover:bg-bb-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy"
+                    >
+                      Add all
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-xs text-bb-muted">Everyone from Jira is already on the team.</span>
+                );
+              })()
+            ) : (
+              <span className="text-xs text-bb-danger">
+                {jiraUsers?.error ?? "Could not load users from Jira."}
+              </span>
+            )}
           </div>
           <input
             value={teamDraft}

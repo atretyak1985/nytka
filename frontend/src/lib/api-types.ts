@@ -174,6 +174,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tasks/{task_id}/screenshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Screenshots */
+        get: operations["list_screenshots_api_tasks__task_id__screenshots_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks/{task_id}/screenshots/{screenshot_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Screenshot Image */
+        get: operations["get_screenshot_image_api_tasks__task_id__screenshots__screenshot_id__image_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks/{task_id}/screenshots/{screenshot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Screenshot
+         * @description User curation from the approve dialog: drop one frame permanently.
+         */
+        delete: operations["delete_screenshot_api_tasks__task_id__screenshots__screenshot_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects": {
         parameters: {
             query?: never;
@@ -267,6 +321,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/jira-users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Jira Users
+         * @description Assignable users of the project's Jira project, for the assignee picker.
+         */
+        get: operations["jira_users_api_projects__project_id__jira_users_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings": {
         parameters: {
             query?: never;
@@ -283,6 +357,58 @@ export interface paths {
         head?: never;
         /** Patch Settings */
         patch: operations["patch_settings_api_settings_patch"];
+        trace?: never;
+    };
+    "/api/projects/{project_id}/knowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Knowledge */
+        get: operations["get_knowledge_api_projects__project_id__knowledge_get"];
+        put?: never;
+        /** Upload Knowledge File */
+        post: operations["upload_knowledge_file_api_projects__project_id__knowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/knowledge/{file_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Knowledge File */
+        delete: operations["delete_knowledge_file_api_projects__project_id__knowledge__file_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/knowledge/init": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Init Knowledge */
+        post: operations["init_knowledge_api_projects__project_id__knowledge_init_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/health": {
@@ -316,6 +442,11 @@ export interface components {
             /** Extraction Prompt */
             extraction_prompt?: string | null;
         };
+        /** Body_upload_knowledge_file_api_projects__project_id__knowledge_post */
+        Body_upload_knowledge_file_api_projects__project_id__knowledge_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_meeting_api_meetings_post */
         Body_upload_meeting_api_meetings_post: {
             /** File */
@@ -344,6 +475,15 @@ export interface components {
             description?: string | null;
             /** Priority */
             priority?: string | null;
+            /**
+             * Labels
+             * @default []
+             */
+            labels: string[];
+            /** Sprint Id */
+            sprint_id?: number | null;
+            /** Area */
+            area?: string | null;
             /** Assignee Query */
             assignee_query?: string | null;
             /**
@@ -365,6 +505,65 @@ export interface components {
             /** Error */
             error?: string | null;
         };
+        /** JiraUserOut */
+        JiraUserOut: {
+            /** Account Id */
+            account_id: string;
+            /** Display Name */
+            display_name: string;
+        };
+        /** JiraUsersOut */
+        JiraUsersOut: {
+            /** Ok */
+            ok: boolean;
+            /**
+             * Users
+             * @default []
+             */
+            users: components["schemas"]["JiraUserOut"][];
+            /** Error */
+            error?: string | null;
+        };
+        /** KnowledgeFileOut */
+        KnowledgeFileOut: {
+            /** Id */
+            id: number;
+            /** Project Id */
+            project_id: number;
+            /** Filename */
+            filename: string;
+            /** Kind */
+            kind: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * KnowledgeStateOut
+         * @description Knowledge-base status for a project, returned alongside its files.
+         */
+        KnowledgeStateOut: {
+            knowledge_status: components["schemas"]["KnowledgeStatus"];
+            /** Knowledge Brief */
+            knowledge_brief: string;
+            /** Knowledge Error */
+            knowledge_error: string | null;
+            /** Knowledge Generated At */
+            knowledge_generated_at: string | null;
+            /** Knowledge Stale */
+            knowledge_stale: boolean;
+            /** Files */
+            files: components["schemas"]["KnowledgeFileOut"][];
+        };
+        /**
+         * KnowledgeStatus
+         * @enum {string}
+         */
+        KnowledgeStatus: "empty" | "processing" | "ready" | "error";
         /** LlmConnectOut */
         LlmConnectOut: {
             /** Ok */
@@ -484,12 +683,24 @@ export interface components {
             task_prefix: string;
             /** Task Format */
             task_format: string;
+            /** Task Language */
+            task_language: string;
+            /** Task Areas */
+            task_areas: string[];
             /** Glossary */
             glossary: string[];
             /** Team */
             team: components["schemas"]["TeamMember"][];
             /** Jira Enabled */
             jira_enabled: boolean;
+            /** Jira Static Labels */
+            jira_static_labels: string[];
+            /** Jira Demo Label */
+            jira_demo_label: boolean;
+            /** Jira Sprint Field */
+            jira_sprint_field: string;
+            /** Jira Sprint Id */
+            jira_sprint_id: number | null;
             /** Jira Key */
             jira_key: string;
             /** Jira Base Url */
@@ -506,6 +717,15 @@ export interface components {
             llm_model: string;
             /** Llm Base Url */
             llm_base_url: string | null;
+            knowledge_status: components["schemas"]["KnowledgeStatus"];
+            /** Knowledge Brief */
+            knowledge_brief: string;
+            /** Knowledge Error */
+            knowledge_error: string | null;
+            /** Knowledge Generated At */
+            knowledge_generated_at: string | null;
+            /** Knowledge Stale */
+            knowledge_stale: boolean;
             /**
              * Created At
              * Format: date-time
@@ -531,12 +751,24 @@ export interface components {
             task_prefix?: string | null;
             /** Task Format */
             task_format?: string | null;
+            /** Task Language */
+            task_language?: string | null;
+            /** Task Areas */
+            task_areas?: string[] | null;
             /** Glossary */
             glossary?: string[] | null;
             /** Team */
             team?: components["schemas"]["TeamMember"][] | null;
             /** Jira Enabled */
             jira_enabled?: boolean | null;
+            /** Jira Static Labels */
+            jira_static_labels?: string[] | null;
+            /** Jira Demo Label */
+            jira_demo_label?: boolean | null;
+            /** Jira Sprint Field */
+            jira_sprint_field?: string | null;
+            /** Jira Sprint Id */
+            jira_sprint_id?: number | null;
             /** Jira Key */
             jira_key?: string | null;
             /** Jira Base Url */
@@ -595,6 +827,10 @@ export interface components {
             title: string;
             /** Description */
             description: string;
+            /** Area */
+            area: string;
+            /** Labels */
+            labels: string[];
             /** Assignee */
             assignee: string | null;
             priority: components["schemas"]["TaskPriority"];
@@ -624,6 +860,10 @@ export interface components {
             title?: string | null;
             /** Description */
             description?: string | null;
+            /** Area */
+            area?: string | null;
+            /** Labels */
+            labels?: string[] | null;
             /** Assignee */
             assignee?: string | null;
             priority?: components["schemas"]["TaskPriority"] | null;
@@ -639,6 +879,22 @@ export interface components {
          * @enum {string}
          */
         TaskPriority: "low" | "medium" | "high";
+        /** TaskScreenshotOut */
+        TaskScreenshotOut: {
+            /** Id */
+            id: number;
+            /** Task Id */
+            task_id: number;
+            /** T Sec */
+            t_sec: number;
+            /** Position */
+            position: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /**
          * TaskStatus
          * @enum {string}
@@ -1082,6 +1338,99 @@ export interface operations {
             };
         };
     };
+    list_screenshots_api_tasks__task_id__screenshots_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskScreenshotOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_screenshot_image_api_tasks__task_id__screenshots__screenshot_id__image_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+                screenshot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_screenshot_api_tasks__task_id__screenshots__screenshot_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+                screenshot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_projects_api_projects_get: {
         parameters: {
             query?: never;
@@ -1263,6 +1612,37 @@ export interface operations {
             };
         };
     };
+    jira_users_api_projects__project_id__jira_users_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraUsersOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_settings_api_settings_get: {
         parameters: {
             query?: never;
@@ -1303,6 +1683,133 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_knowledge_api_projects__project_id__knowledge_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeStateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_knowledge_file_api_projects__project_id__knowledge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_knowledge_file_api_projects__project_id__knowledge_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeFileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_knowledge_file_api_projects__project_id__knowledge__file_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                file_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    init_knowledge_api_projects__project_id__knowledge_init_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeStateOut"];
                 };
             };
             /** @description Validation Error */
