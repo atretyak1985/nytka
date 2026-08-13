@@ -245,6 +245,40 @@ class LlmConnectOut(BaseModel):
     error: str | None = None
 
 
+class SearchHitOut(BaseModel):
+    """One project-memory search hit (see app/db/fts.py)."""
+    kind: str  # "segment" | "task" | "brief"
+    meeting_id: int | None
+    meeting_title: str | None
+    task_id: int | None  # ref_id when kind == "task", else None
+    t_start: float | None
+    # Highlight markers are \x01/\x02 control characters, not HTML: the transcript may
+    # itself contain markup, so the client splits on them instead of rendering raw HTML.
+    snippet: str
+
+
+class SearchOut(BaseModel):
+    query: str
+    hits: list[SearchHitOut]
+
+
+class AskIn(BaseModel):
+    question: str
+
+
+class AskCitationOut(BaseModel):
+    meeting_id: int
+    meeting_title: str
+    t_start: float | None
+    quote: str
+
+
+class AskOut(BaseModel):
+    answer: str
+    no_data: bool
+    citations: list[AskCitationOut]
+
+
 class KnowledgeFileOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
