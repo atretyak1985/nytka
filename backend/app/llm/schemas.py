@@ -21,6 +21,23 @@ class ExtractionResult(BaseModel):
     tasks: list[ActionItem] = Field(description="All extracted action items; empty list if none")
 
 
+class BriefPoint(BaseModel):
+    text: str = Field(description="One self-contained sentence, in the meeting's language")
+    source_timestamp: float | None = Field(
+        default=None, description="Seconds from meeting start (from the [mm:ss] markers), or null"
+    )
+
+
+class BriefResult(BaseModel):
+    # No defaults on the lists: LM Studio's schema-constrained decoding satisfies an
+    # all-optional schema with `{}` and the brief comes back empty (same trap as ExtractionResult).
+    summary: str = Field(description="3-6 sentence executive summary of the meeting")
+    decisions: list[BriefPoint] = Field(description="Decisions actually agreed on; empty list if none")
+    risks: list[BriefPoint] = Field(description="Risks, blockers, concerns raised; empty list if none")
+    open_questions: list[BriefPoint] = Field(description="Questions left unanswered; empty list if none")
+    next_steps: list[BriefPoint] = Field(description="Agreed next steps that are not tracked tasks; empty list if none")
+
+
 class AreaList(BaseModel):
     """Structured area/sub-area taxonomy extracted from a project's knowledge sources."""
 

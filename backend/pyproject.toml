@@ -25,3 +25,8 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "ruff>=0.15.21",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "real_brief: run the real brief-generation step instead of the offline stub",
+]

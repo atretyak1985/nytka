@@ -14,6 +14,7 @@ class MeetingStatus(enum.StrEnum):
     PROCESSING = "processing"
     TRANSCRIBING = "transcribing"
     EXTRACTING = "extracting"
+    SUMMARIZING = "summarizing"
     DONE = "done"
     ERROR = "error"
 
@@ -29,6 +30,13 @@ class TaskPriority(enum.StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+
+class BriefStatus(enum.StrEnum):
+    EMPTY = "empty"          # no brief generated yet
+    PROCESSING = "processing"  # generation in flight
+    READY = "ready"          # brief generated and current
+    ERROR = "error"          # last generation failed
 
 
 class KnowledgeStatus(enum.StrEnum):
@@ -155,6 +163,37 @@ class Meeting(Base):
         back_populates="meeting", order_by="TranscriptSegment.t_start", cascade="all, delete-orphan"
     )
     tasks: Mapped[list[Task]] = relationship(back_populates="meeting")
+    brief: Mapped[MeetingBrief | None] = relationship(
+        back_populates="meeting", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class MeetingBrief(Base):
+    """Structured minutes for one meeting: what was decided, what is at risk,
+    what is still open. Generated after task extraction (see app/llm/brief.py).
+
+    List columns hold `[{"text": str, "source_timestamp": float | None}, ...]`
+    so every point can deep-link into the video like Task.source_timestamp does.
+    """
+
+    __tablename__ = "meeting_briefs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id"), index=True, unique=True)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    decisions: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    risks: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    open_questions: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    next_steps: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    status: Mapped[BriefStatus] = mapped_column(
+        Enum(BriefStatus, values_callable=lambda e: [m.value for m in e]),
+        default=BriefStatus.EMPTY,
+    )
+    error: Mapped[str | None] = mapped_column(Text, default=None)
+    generated_at: Mapped[datetime | None] = mapped_column(default=None)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    meeting: Mapped[Meeting] = relationship(back_populates="brief")
 
 
 class TranscriptSegment(Base):

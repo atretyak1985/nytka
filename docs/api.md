@@ -16,12 +16,17 @@ Base URL: `http://localhost:8000`. All responses are JSON. The authoritative, al
 | GET | `/api/meetings` | List meetings, newest first. |
 | GET | `/api/meetings/{id}` | Meeting detail: meeting fields + `segments[]` (transcript) + `tasks[]`. **404** if unknown. |
 | POST | `/api/meetings/{id}/retry` | Re-run the pipeline. Allowed only from `error` status — otherwise **409**. Resumes from the last completed stage. |
+| GET | `/api/meetings/{id}/brief` | Structured minutes (summary, decisions, risks, open questions, next steps). **404** if the meeting is unknown or has no brief yet. |
+| POST | `/api/meetings/{id}/brief/regenerate` | Re-run brief generation only (segments and tasks untouched). Marks the brief `processing` and schedules a background job; returns the brief. **409** if the meeting has no transcript yet. |
+| GET | `/api/meetings/{id}/brief/markdown` | The brief rendered as `text/markdown` (backs the UI "Copy as Markdown" button). **404** if absent. |
 
 Upload validation: extension must be one of `.mp4 .mov .mkv .webm .mp3 .wav .m4a .ogg` (else **422**); size limit 2 GB (else **413**, partial file removed).
 
-Meeting `status`: `queued | processing | transcribing | extracting | done | error`. On `error`, `error_message` is populated.
+Meeting `status`: `queued | processing | transcribing | extracting | summarizing | done | error`. On `error`, `error_message` is populated.
 
-`MeetingDetailOut.segments[]`: `{id, t_start, t_end, text, speaker|null}` ordered by `t_start`.
+`MeetingDetailOut.segments[]`: `{id, t_start, t_end, text, speaker|null}` ordered by `t_start`. `MeetingDetailOut.brief` embeds the brief (or `null`).
+
+Brief `status`: `empty | processing | ready | error`. Each point in `decisions/risks/open_questions/next_steps` is `{text, source_timestamp|null}` — `source_timestamp` (seconds) deep-links into the recording. A brief failure never fails the meeting: the error lands on the brief row only.
 
 ## Tasks (notebook)
 

@@ -1,13 +1,26 @@
 import subprocess
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.db.models import Meeting, MeetingStatus, Task, TaskScreenshot, TranscriptSegment
+from app.db.models import BriefStatus, Meeting, MeetingBrief, MeetingStatus, Task, TaskScreenshot, TranscriptSegment
+from app.llm.schemas import BriefPoint, BriefResult
 from app.pipeline.audio import AudioExtractionError, extract_audio
 from app.pipeline.runner import run_pipeline_with_session
 from app.pipeline.transcribe import pick_model_size
+
+
+@pytest.fixture(autouse=True)
+def stub_brief_generation(request):
+    """Keep pipeline tests offline: the summarizing step would otherwise hit a
+    real LLM endpoint for any meeting with segments. Tests that exercise brief
+    generation itself opt out with @pytest.mark.real_brief."""
+    if "real_brief" in request.keywords:
+        yield None
+        return
+    with patch("app.pipeline.runner.generate_brief_for_meeting") as mock_brief:
+        yield mock_brief
 
 
 @pytest.fixture(scope="session")
@@ -136,6 +149,92 @@ def test_pipeline_commits_screenshot_rows_idempotently(db_session, tmp_path) -> 
     assert mock_gen.call_count == 1  # idempotent: not called again on the rerun
     db_session.refresh(meeting)
     assert meeting.status == MeetingStatus.DONE
+
+
+def _brief_result() -> BriefResult:
+    return BriefResult(
+        summary="The team agreed on the release scope.",
+        decisions=[BriefPoint(text="Release on Friday.", source_timestamp=30.0)],
+        risks=[BriefPoint(text="CI is flaky.", source_timestamp=None)],
+        open_questions=[],
+        next_steps=[],
+    )
+
+
+def _make_brief_meeting(db, media: Path) -> Meeting:
+    """Meeting with a segment (skips transcribe) — the summarizing step will run."""
+    meeting = _make_meeting(db, str(media))
+    db.add(TranscriptSegment(meeting_id=meeting.id, t_start=0, t_end=1, text="обговорили реліз"))
+    db.commit()
+    return meeting
+
+
+@pytest.mark.real_brief
+def test_pipeline_generates_brief(db_session, tmp_path) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"fake")
+    meeting = _make_brief_meeting(db_session, media)
+    llm = MagicMock()
+    llm.chat.completions.create.return_value = _brief_result()
+    with patch("app.pipeline.runner.extract_audio"), \
+         patch("app.pipeline.runner.extract_tasks_for_meeting", return_value=0), \
+         patch("app.llm.brief.get_client", return_value=llm):
+        run_pipeline_with_session(db_session, meeting.id)
+    db_session.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE
+    brief = db_session.query(MeetingBrief).filter_by(meeting_id=meeting.id).one()
+    assert brief.status == BriefStatus.READY
+    assert brief.summary  # non-empty
+    for points in (brief.decisions, brief.risks, brief.open_questions, brief.next_steps):
+        for point in points:
+            assert set(point) == {"text", "source_timestamp"}
+            assert isinstance(point["text"], str)
+            assert point["source_timestamp"] is None or isinstance(point["source_timestamp"], float)
+
+
+@pytest.mark.real_brief
+def test_pipeline_skips_ready_brief_on_rerun(db_session, tmp_path) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"fake")
+    meeting = _make_brief_meeting(db_session, media)
+    llm = MagicMock()
+    llm.chat.completions.create.return_value = _brief_result()
+    with patch("app.pipeline.runner.extract_audio"), \
+         patch("app.pipeline.runner.extract_tasks_for_meeting", return_value=0), \
+         patch("app.llm.brief.get_client", return_value=llm):
+        run_pipeline_with_session(db_session, meeting.id)
+    assert llm.chat.completions.create.call_count == 1  # single chunk, no reduce
+
+    with patch("app.pipeline.runner.extract_audio"), \
+         patch("app.pipeline.runner.extract_tasks_for_meeting", return_value=0), \
+         patch("app.pipeline.runner.generate_brief_for_meeting") as mock_generate:
+        run_pipeline_with_session(db_session, meeting.id)
+    mock_generate.assert_not_called()  # READY brief survives a rerun untouched
+    db_session.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE
+
+
+@pytest.mark.real_brief
+def test_pipeline_brief_error_keeps_meeting_done(db_session, tmp_path) -> None:
+    from app.db.models import Project
+
+    project = db_session.get(Project, 1)
+    project.llm_api_key = "sk-oops"
+    db_session.commit()
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"fake")
+    meeting = _make_brief_meeting(db_session, media)
+    llm = MagicMock()
+    llm.chat.completions.create.side_effect = RuntimeError("bad key sk-oops")
+    with patch("app.pipeline.runner.extract_audio"), \
+         patch("app.pipeline.runner.extract_tasks_for_meeting", return_value=0), \
+         patch("app.llm.brief.get_client", return_value=llm):
+        run_pipeline_with_session(db_session, meeting.id)
+    db_session.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE  # brief failure never fails the meeting
+    brief = db_session.query(MeetingBrief).filter_by(meeting_id=meeting.id).one()
+    assert brief.status == BriefStatus.ERROR
+    assert "sk-oops" not in brief.error
 
 
 def test_pipeline_skips_screenshots_for_audio_only(db_session, tmp_path) -> None:

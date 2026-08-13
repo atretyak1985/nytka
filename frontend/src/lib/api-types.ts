@@ -57,6 +57,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/meetings/{meeting_id}/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Meeting Brief */
+        get: operations["get_meeting_brief_api_meetings__meeting_id__brief_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/meetings/{meeting_id}/brief/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate Meeting Brief
+         * @description Re-run brief generation only. Transcript segments and tasks are untouched.
+         */
+        post: operations["regenerate_meeting_brief_api_meetings__meeting_id__brief_regenerate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/meetings/{meeting_id}/brief/markdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Meeting Brief Markdown */
+        get: operations["get_meeting_brief_markdown_api_meetings__meeting_id__brief_markdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/meetings/{meeting_id}/reextract": {
         parameters: {
             query?: never;
@@ -456,6 +510,18 @@ export interface components {
             /** Project Id */
             project_id?: number | null;
         };
+        /** BriefPointOut */
+        BriefPointOut: {
+            /** Text */
+            text: string;
+            /** Source Timestamp */
+            source_timestamp?: number | null;
+        };
+        /**
+         * BriefStatus
+         * @enum {string}
+         */
+        BriefStatus: "empty" | "processing" | "ready" | "error";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -585,6 +651,28 @@ export interface components {
             /** Error */
             error?: string | null;
         };
+        /** MeetingBriefOut */
+        MeetingBriefOut: {
+            /** Id */
+            id: number;
+            /** Meeting Id */
+            meeting_id: number;
+            /** Summary */
+            summary: string;
+            /** Decisions */
+            decisions: components["schemas"]["BriefPointOut"][];
+            /** Risks */
+            risks: components["schemas"]["BriefPointOut"][];
+            /** Open Questions */
+            open_questions: components["schemas"]["BriefPointOut"][];
+            /** Next Steps */
+            next_steps: components["schemas"]["BriefPointOut"][];
+            status: components["schemas"]["BriefStatus"];
+            /** Error */
+            error: string | null;
+            /** Generated At */
+            generated_at: string | null;
+        };
         /** MeetingDetailOut */
         MeetingDetailOut: {
             /** Id */
@@ -617,6 +705,7 @@ export interface components {
             segments: components["schemas"]["SegmentOut"][];
             /** Tasks */
             tasks: components["schemas"]["TaskOut"][];
+            brief: components["schemas"]["MeetingBriefOut"] | null;
         };
         /** MeetingOut */
         MeetingOut: {
@@ -651,7 +740,7 @@ export interface components {
          * MeetingStatus
          * @enum {string}
          */
-        MeetingStatus: "queued" | "processing" | "transcribing" | "extracting" | "done" | "error";
+        MeetingStatus: "queued" | "processing" | "transcribing" | "extracting" | "summarizing" | "done" | "error";
         /** ProjectCreateIn */
         ProjectCreateIn: {
             /** Name */
@@ -1071,6 +1160,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeetingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_meeting_brief_api_meetings__meeting_id__brief_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingBriefOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regenerate_meeting_brief_api_meetings__meeting_id__brief_regenerate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingBriefOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_meeting_brief_markdown_api_meetings__meeting_id__brief_markdown_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
             /** @description Validation Error */
