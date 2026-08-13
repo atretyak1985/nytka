@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Check, RotateCw } from "lucide-react";
 import { useMeeting, useReextractMeeting, useRetryMeeting } from "@/features/meetings/hooks";
+import { MeetingBrief } from "@/features/meetings/MeetingBrief";
 import { ProcessingStats } from "@/features/meetings/ProcessingStats";
 import { DeleteMeetingButton } from "@/features/meetings/DeleteMeetingButton";
 import { usePatchTask } from "@/features/tasks/hooks";
@@ -15,7 +16,7 @@ import { MEETING_STATUS, TASK_STATUS, formatDurationMinutes, formatTimestamp, sp
 import { API_URL } from "@/lib/api";
 import { Chip } from "@/components/ui/chip";
 
-const PIPELINE_STEPS = ["Audio", "Transcription", "Task extraction", "Done"] as const;
+const PIPELINE_STEPS = ["Audio", "Transcription", "Task extraction", "Brief", "Done"] as const;
 
 function stepIndexForStatus(status: MeetingStatus): number {
   switch (status) {
@@ -26,8 +27,10 @@ function stepIndexForStatus(status: MeetingStatus): number {
       return 1;
     case "extracting":
       return 2;
-    default:
+    case "summarizing":
       return 3;
+    default:
+      return 4;
   }
 }
 
@@ -243,6 +246,8 @@ export default function MeetingDetailPage({
           Your browser cannot play this recording.
         </video>
       </div>
+
+      <MeetingBrief meetingId={meeting.id} poll={isActive} onSeek={seekVideo} />
 
       <div className="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="overflow-hidden rounded-bb-frame border border-bb-line bg-bb-surface">

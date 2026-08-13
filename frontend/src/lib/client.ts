@@ -20,8 +20,11 @@ export type KnowledgeState = components["schemas"]["KnowledgeStateOut"];
 export type KnowledgeFile = components["schemas"]["KnowledgeFileOut"];
 export type KnowledgeStatus = components["schemas"]["KnowledgeStatus"];
 export type TaskScreenshot = components["schemas"]["TaskScreenshotOut"];
+export type MeetingBrief = components["schemas"]["MeetingBriefOut"];
+export type BriefPoint = components["schemas"]["BriefPointOut"];
+export type BriefStatus = components["schemas"]["BriefStatus"];
 
-export const ACTIVE_STATUSES: MeetingStatus[] = ["queued", "processing", "transcribing", "extracting"];
+export const ACTIVE_STATUSES: MeetingStatus[] = ["queued", "processing", "transcribing", "extracting", "summarizing"];
 
 export const api = {
   listMeetings: (params: { project_id?: number } = {}) => {
@@ -34,6 +37,10 @@ export const api = {
   getMeeting: (id: number) => apiFetch<MeetingDetail>(`/api/meetings/${id}`),
   retryMeeting: (id: number) => apiFetch<Meeting>(`/api/meetings/${id}/retry`, { method: "POST" }),
   reextractMeeting: (id: number) => apiFetch<Meeting>(`/api/meetings/${id}/reextract`, { method: "POST" }),
+  getMeetingBrief: (id: number) => apiFetch<MeetingBrief>(`/api/meetings/${id}/brief`),
+  regenerateMeetingBrief: (id: number) =>
+    apiFetch<MeetingBrief>(`/api/meetings/${id}/brief/regenerate`, { method: "POST" }),
+  meetingBriefMarkdownUrl: (id: number) => `${API_URL}/api/meetings/${id}/brief/markdown`,
   deleteMeeting: async (id: number): Promise<void> => {
     const res = await fetch(`${API_URL}/api/meetings/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error(await res.text());

@@ -24,6 +24,30 @@ export function useMeeting(id: number) {
   });
 }
 
+/** Brief (structured minutes) for a meeting. 404s until the pipeline's summarizing
+ *  step has run once — callers should render nothing on error. Polls every 2s while
+ *  the brief itself is processing or while the meeting is still active (`poll`). */
+export function useMeetingBrief(id: number, poll = false) {
+  return useQuery({
+    queryKey: ["meetings", id, "brief"],
+    queryFn: () => api.getMeetingBrief(id),
+    enabled: id >= 0,
+    retry: false, // a 404 means "no brief yet", not a transient failure
+    refetchInterval: (query) =>
+      poll || query.state.data?.status === "processing" ? 2000 : false,
+  });
+}
+
+export function useRegenerateBrief() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.regenerateMeetingBrief,
+    onSuccess: (_brief, id) => {
+      void qc.invalidateQueries({ queryKey: ["meetings", id, "brief"] });
+    },
+  });
+}
+
 export function useUploadMeeting() {
   const qc = useQueryClient();
   return useMutation({

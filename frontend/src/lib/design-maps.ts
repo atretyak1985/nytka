@@ -12,6 +12,7 @@ export const MEETING_STATUS: Record<MeetingStatus, ChipStyle> = {
   processing: { label: "Processing audio", className: "bg-bb-amber-soft text-bb-amber border border-transparent" },
   transcribing: { label: "Transcribing", className: "bg-bb-amber-soft text-bb-amber border border-transparent" },
   extracting: { label: "Extracting tasks", className: "bg-bb-violet-soft text-bb-violet border border-transparent" },
+  summarizing: { label: "Summarizing", className: "bg-bb-violet-soft text-bb-violet border border-transparent" },
   done: { label: "Done", className: "bg-bb-sage-soft text-bb-sage border border-transparent" },
   error: { label: "Error", className: "bg-bb-danger-soft text-bb-danger border border-transparent" },
 };
