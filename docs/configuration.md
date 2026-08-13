@@ -10,6 +10,19 @@ Backend settings use the `NYTKA_` prefix (pydantic-settings; also read from `bac
 | `NYTKA_DATABASE_URL` | `sqlite:///<data_dir>/nytka.db` | Override the DB URL entirely (rarely needed). |
 | `NYTKA_WHISPER_MODEL` | `auto` | Whisper model size: `auto` (large-v3 on CUDA, medium on CPU), `tiny`, `medium`, `large-v3`. `tiny` is fast and fine for development; `medium`+ recommended for real Ukrainian meetings. |
 | `NYTKA_MAX_UPLOAD_MB` | `2048` | Upload size limit; larger files get 413. |
+| `NYTKA_DIARIZATION` | `auto` | Speaker diarization: `auto` runs it when the models are installed, `off` disables it. Missing models are never an error — the step is skipped with an INFO log and segments keep `speaker = null`. CI sets `off`. |
+| `NYTKA_DIARIZATION_MODEL_DIR` | `<data_dir>/models/diarization` | Where the diarization ONNX models live (`segmentation.onnx` + `embedding.onnx`). |
+| `NYTKA_DIARIZATION_MAX_SPEAKERS` | `8` | Cap on distinct speaker labels per meeting; extra low-talk-time "speakers" from over-segmentation are dropped (their segments stay unlabelled). |
+
+### Speaker diarization (optional)
+
+Diarization runs fully offline via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) — CPU-only ONNX models fetched by direct URL, no HuggingFace token or gated licences. Install the runtime and models once:
+
+```sh
+make -C infrastructure install-diarization
+```
+
+This runs `uv sync --extra diarization` and downloads two models (~44 MB total: pyannote segmentation-3.0 ONNX export + 3D-Speaker ERes2Net embeddings) into `NYTKA_DIARIZATION_MODEL_DIR`. `make -C infrastructure doctor` reports whether the models are present. After a meeting is processed, map the detected `SPEAKER_NN` labels to team members on the meeting page and re-extract so task assignees use real names.
 
 Frontend: `frontend/.env.local` (gitignored)
 

@@ -3,6 +3,7 @@ import { API_URL, apiFetch } from "./api";
 
 export type Meeting = components["schemas"]["MeetingOut"];
 export type MeetingDetail = components["schemas"]["MeetingDetailOut"];
+export type MeetingPatch = components["schemas"]["MeetingPatchIn"];
 export type Segment = components["schemas"]["SegmentOut"];
 export type Task = components["schemas"]["TaskOut"];
 export type TaskPriority = components["schemas"]["TaskPriority"];
@@ -35,6 +36,12 @@ export const api = {
     return apiFetch<Meeting[]>(`/api/meetings${suffix ? `?${suffix}` : ""}`);
   },
   getMeeting: (id: number) => apiFetch<MeetingDetail>(`/api/meetings/${id}`),
+  patchMeeting: (id: number, payload: MeetingPatch) =>
+    apiFetch<MeetingDetail>(`/api/meetings/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
   retryMeeting: (id: number) => apiFetch<Meeting>(`/api/meetings/${id}/retry`, { method: "POST" }),
   reextractMeeting: (id: number) => apiFetch<Meeting>(`/api/meetings/${id}/reextract`, { method: "POST" }),
   getMeetingBrief: (id: number) => apiFetch<MeetingBrief>(`/api/meetings/${id}/brief`),

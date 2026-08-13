@@ -1,0 +1,112 @@
+from pathlib import Path
+from unittest.mock import patch
+
+from app.db.models import Meeting, TranscriptSegment
+from app.pipeline.diarize import SpeakerTurn, _cap_speakers, assign_speakers
+
+WAV = Path("/tmp/fake.16k.wav")
+
+
+def _meeting_with_segments(db) -> Meeting:
+    meeting = Meeting(project_id=1, title="m", source_filename="m.mp4", media_path="/x")
+    db.add(meeting)
+    db.flush()
+    db.add_all([
+        TranscriptSegment(meeting_id=meeting.id, t_start=0.0, t_end=4.0, text="перший"),
+        TranscriptSegment(meeting_id=meeting.id, t_start=4.0, t_end=9.0, text="другий"),
+        TranscriptSegment(meeting_id=meeting.id, t_start=60.0, t_end=65.0, text="тиша/музика"),
+    ])
+    db.commit()
+    return meeting
+
+
+TURNS = [
+    SpeakerTurn(start=0.0, end=3.5, label="SPEAKER_00"),
+    SpeakerTurn(start=3.5, end=10.0, label="SPEAKER_01"),
+]
+
+
+def _segments(db, meeting):
+    return {s.t_start: s for s in db.query(TranscriptSegment).filter_by(meeting_id=meeting.id)}
+
+
+def test_assign_speakers_labels_by_largest_overlap(db_session, monkeypatch) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "diarization", "auto")
+    meeting = _meeting_with_segments(db_session)
+    with (
+        patch("app.pipeline.diarize.models_available", return_value=True),
+        patch("app.pipeline.diarize.diarize_wav", return_value=TURNS),
+    ):
+        count = assign_speakers(db_session, meeting, WAV)
+    assert count == 2
+    by_start = _segments(db_session, meeting)
+    assert by_start[0.0].speaker == "SPEAKER_00"  # 3.5s overlap vs 0.5s
+    assert by_start[4.0].speaker == "SPEAKER_01"
+    assert by_start[60.0].speaker is None  # zero overlap — silence stays unlabelled
+
+
+def test_assign_speakers_is_idempotent(db_session, monkeypatch) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "diarization", "auto")
+    meeting = _meeting_with_segments(db_session)
+    with (
+        patch("app.pipeline.diarize.models_available", return_value=True),
+        patch("app.pipeline.diarize.diarize_wav", return_value=TURNS),
+    ):
+        first = assign_speakers(db_session, meeting, WAV)
+        second = assign_speakers(db_session, meeting, WAV)
+    assert first == second == 2
+    by_start = _segments(db_session, meeting)
+    assert by_start[0.0].speaker == "SPEAKER_00"
+    assert by_start[4.0].speaker == "SPEAKER_01"
+
+
+def test_assign_speakers_off_skips_without_importing_engine(db_session, monkeypatch) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "diarization", "off")
+    meeting = _meeting_with_segments(db_session)
+    with patch("app.pipeline.diarize.diarize_wav") as mock_diarize:
+        assert assign_speakers(db_session, meeting, WAV) == 0
+    mock_diarize.assert_not_called()
+    assert all(s.speaker is None for s in _segments(db_session, meeting).values())
+
+
+def test_assign_speakers_missing_models_returns_zero(db_session, monkeypatch) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "diarization", "auto")
+    meeting = _meeting_with_segments(db_session)
+    with (
+        patch("app.pipeline.diarize.models_available", return_value=False),
+        patch("app.pipeline.diarize.diarize_wav") as mock_diarize,
+    ):
+        assert assign_speakers(db_session, meeting, WAV) == 0
+    mock_diarize.assert_not_called()  # sherpa_onnx is imported inside diarize_wav — never reached
+
+
+def test_assign_speakers_swallows_diarization_errors(db_session, monkeypatch) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "diarization", "auto")
+    meeting = _meeting_with_segments(db_session)
+    with (
+        patch("app.pipeline.diarize.models_available", return_value=True),
+        patch("app.pipeline.diarize.diarize_wav", side_effect=RuntimeError("onnx exploded")),
+    ):
+        assert assign_speakers(db_session, meeting, WAV) == 0  # must not raise
+    assert all(s.speaker is None for s in _segments(db_session, meeting).values())
+
+
+def test_cap_speakers_keeps_most_talkative() -> None:
+    turns = [
+        SpeakerTurn(start=0, end=100, label="SPEAKER_00"),
+        SpeakerTurn(start=100, end=150, label="SPEAKER_01"),
+        SpeakerTurn(start=150, end=151, label="SPEAKER_02"),  # 1s blip — dropped at cap 2
+    ]
+    capped = _cap_speakers(turns, max_speakers=2)
+    assert {t.label for t in capped} == {"SPEAKER_00", "SPEAKER_01"}
+    assert _cap_speakers(turns, max_speakers=8) == turns

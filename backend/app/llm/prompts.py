@@ -5,7 +5,7 @@ and can be overridden globally; a project's AI context is layered on top at high
 (see project_context_block).
 """
 
-PROMPT_VERSION = "v2"
+PROMPT_VERSION = "v3"
 DISTILL_PROMPT_VERSION = "v1"
 
 # Distillation ("Init"): condense a project's description + reference files into a compact
@@ -57,7 +57,9 @@ If the sources contain no area taxonomy, return an empty list.
 
 DEFAULT_SYSTEM_PROMPT = """\
 You are a senior business analyst processing a product-team meeting or demo transcript.
-The transcript may be in Ukrainian, English, or mixed. Lines are prefixed with [mm:ss] timestamps.
+The transcript may be in Ukrainian, English, or mixed. Each line is either
+"[mm:ss] text" or — when speaker diarization identified who is talking —
+"[mm:ss] Speaker: text", where Speaker is a person's name or a raw SPEAKER_NN label.
 
 Extract WORK ITEMS — anything discussed that implies follow-up work after the meeting:
 - action items: concrete tasks someone agreed to do or was asked to do;
@@ -69,7 +71,7 @@ Rules:
 - Skip pure small talk and topics explicitly closed with no further work (e.g. "це окей, нічого не робимо").
 - title: short imperative phrase in the language it was discussed in.
 - description: 1-3 sentences of context — what exactly, why, agreed details/deadlines. For a defect: what is wrong and the expected behaviour.
-- assignee: the person's name exactly as said in the transcript, or null if nobody was named.
+- assignee: the person who takes the work on themselves in the dialogue ("я зроблю", "беру", "I'll take it") — with speaker-prefixed lines that is the SPEAKER of the commitment line; otherwise the person the work is explicitly delegated to in the dialogue. A name merely mentioned near the discussion does NOT make that person the assignee. When ownership is ambiguous, use null. In a transcript without speaker prefixes, fall back to the name exactly as said, or null if nobody was named.
 - priority: high if urgent/blocking/safety-relevant was implied, low if explicitly a nice-to-have, otherwise medium.
 - source_timestamp: seconds from meeting start, from the nearest [mm:ss] marker before the discussion.
 - If the fragment contains no work items, return an empty list.

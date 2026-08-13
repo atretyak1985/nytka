@@ -7,14 +7,16 @@ from sqlalchemy.orm import Session
 from app.db.models import AppSetting, Meeting, Task, TaskPriority
 from app.llm.chunking import build_chunks
 from app.llm.client import get_client, model_and_kwargs
-from app.llm.prompts import DEFAULT_SYSTEM_PROMPT, project_context_block, user_prompt
+from app.llm.prompts import DEFAULT_SYSTEM_PROMPT, PROMPT_VERSION, project_context_block, user_prompt
 from app.llm.schemas import ActionItem, ExtractionResult
 
 logger = logging.getLogger(__name__)
 
 
 def extract_tasks_for_meeting(db: Session, meeting: Meeting) -> int:
-    chunks = build_chunks(meeting.segments)
+    # Speaker-attributed transcript when diarization ran: user-confirmed team names
+    # where mapped, raw SPEAKER_NN labels otherwise.
+    chunks = build_chunks(meeting.segments, speaker_names=meeting.speaker_labels)
     if not chunks:
         return 0
 
@@ -83,7 +85,10 @@ def extract_tasks_for_meeting(db: Session, meeting: Meeting) -> int:
         ))
         created += 1
     db.commit()
-    logger.info("meeting %s: %s tasks from %s chunks (prompt v1)", meeting.id, created, len(chunks))
+    logger.info(
+        "meeting %s: %s tasks from %s chunks (prompt %s)",
+        meeting.id, created, len(chunks), PROMPT_VERSION,
+    )
     return created
 
 

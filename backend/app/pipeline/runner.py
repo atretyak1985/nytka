@@ -20,6 +20,7 @@ from app.db.session import SessionLocal
 from app.llm.brief import generate_brief_for_meeting
 from app.llm.extraction import extract_tasks_for_meeting
 from app.pipeline.audio import extract_audio
+from app.pipeline.diarize import assign_speakers
 from app.pipeline.screenshots import generate_for_task, probe_video_duration
 from app.pipeline.transcribe import transcribe_meeting
 
@@ -90,6 +91,15 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
             _set_status(db, meeting, MeetingStatus.TRANSCRIBING)
             transcribe_meeting(db, meeting, wav)
 
+        # Before extraction, so the LLM sees a speaker-attributed transcript.
+        has_speakers = db.scalar(
+            select(TranscriptSegment.id)
+            .where(TranscriptSegment.meeting_id == meeting.id, TranscriptSegment.speaker.is_not(None))
+            .limit(1)
+        )
+        if not has_speakers:
+            _assign_speakers(db, meeting, wav)
+
         has_tasks = db.scalar(select(Task.id).where(Task.meeting_id == meeting.id).limit(1))
         if not has_tasks:
             meeting.progress = 0.0
@@ -140,6 +150,20 @@ def regenerate_brief(meeting_id: int) -> None:
 def _set_status(db: Session, meeting: Meeting, status: MeetingStatus) -> None:
     meeting.status = status
     db.commit()
+
+
+def _assign_speakers(db: Session, meeting: Meeting, wav_path: Path) -> None:
+    """Best-effort speaker diarization inside the `transcribing` step.
+
+    Never raises: a diarization failure must not error a transcribed meeting.
+    assign_speakers has its own failure boundary; this wrapper keeps the pipeline
+    safe even against errors raised before it (mirrors _generate_screenshots).
+    """
+    try:
+        assign_speakers(db, meeting, wav_path)
+    except Exception:  # noqa: BLE001 - diarization is decoration, never fail the pipeline
+        logger.exception("speaker assignment failed for meeting %s", meeting.id)
+        db.rollback()
 
 
 def _generate_screenshots(db: Session, meeting: Meeting) -> None:

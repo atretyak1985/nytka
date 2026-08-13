@@ -18,6 +18,9 @@ dependencies = [
     "sqlalchemy>=2.0.51",
 ]
 
+[project.optional-dependencies]
+diarization = ["sherpa-onnx>=1.10"]
+
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
@@ -27,6 +30,9 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
+# `manual` tests need a live LLM (LM Studio) — run them explicitly with `-m manual`.
 markers = [
     "real_brief: run the real brief-generation step instead of the offline stub",
+    "manual: needs a live LLM; excluded from the default run and CI",
 ]
+addopts = "-m 'not manual'"

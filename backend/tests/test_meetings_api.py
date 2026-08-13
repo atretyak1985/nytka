@@ -138,6 +138,74 @@ def test_reextract_removes_task_screenshot_dirs(client, db_session):
     assert not frame_dir.exists()  # re-extract recreates tasks with NEW ids — old frames must go
 
 
+def _meeting_with_speakers(client, db_session):
+    from app.db.models import Meeting, Project, TranscriptSegment
+
+    project = db_session.get(Project, 1)
+    project.team = [{"name": "Олена Коваль", "role": "PM"}, {"name": "Nazar Salo", "role": "dev"}]
+    with patch("app.api.meetings.run_pipeline"):
+        mid = upload(client).json()["id"]
+    meeting = db_session.get(Meeting, mid)
+    db_session.add_all([
+        TranscriptSegment(meeting_id=mid, t_start=0, t_end=5, text="a", speaker="SPEAKER_00"),
+        TranscriptSegment(meeting_id=mid, t_start=5, t_end=9, text="b", speaker="SPEAKER_01"),
+        TranscriptSegment(meeting_id=mid, t_start=9, t_end=12, text="c", speaker=None),
+    ])
+    db_session.commit()
+    return meeting
+
+
+def test_detail_exposes_detected_speakers_and_display(client, db_session):
+    meeting = _meeting_with_speakers(client, db_session)
+    meeting.speaker_labels = {"SPEAKER_00": "Олена Коваль"}
+    db_session.commit()
+
+    detail = client.get(f"/api/meetings/{meeting.id}").json()
+    assert detail["detected_speakers"] == ["SPEAKER_00", "SPEAKER_01"]
+    assert detail["speaker_labels"] == {"SPEAKER_00": "Олена Коваль"}
+    displays = {s["speaker"]: s["speaker_display"] for s in detail["segments"]}
+    assert displays == {"SPEAKER_00": "Олена Коваль", "SPEAKER_01": "SPEAKER_01", None: None}
+
+
+def test_patch_speaker_labels_success_and_unset(client, db_session):
+    meeting = _meeting_with_speakers(client, db_session)
+
+    resp = client.patch(
+        f"/api/meetings/{meeting.id}",
+        json={"speaker_labels": {"SPEAKER_00": "Олена Коваль", "SPEAKER_01": "Nazar Salo"}},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["speaker_labels"] == {"SPEAKER_00": "Олена Коваль", "SPEAKER_01": "Nazar Salo"}
+
+    # empty value unsets one mapping, the other survives (merge semantics)
+    resp = client.patch(f"/api/meetings/{meeting.id}", json={"speaker_labels": {"SPEAKER_01": ""}})
+    assert resp.status_code == 200
+    assert resp.json()["speaker_labels"] == {"SPEAKER_00": "Олена Коваль"}
+
+
+def test_patch_speaker_labels_422_on_unknown_label(client, db_session):
+    meeting = _meeting_with_speakers(client, db_session)
+    resp = client.patch(
+        f"/api/meetings/{meeting.id}",
+        json={"speaker_labels": {"SPEAKER_99": "Олена Коваль"}},
+    )
+    assert resp.status_code == 422
+
+
+def test_patch_speaker_labels_422_on_name_outside_team(client, db_session):
+    meeting = _meeting_with_speakers(client, db_session)
+    resp = client.patch(
+        f"/api/meetings/{meeting.id}",
+        json={"speaker_labels": {"SPEAKER_00": "Хтось Чужий"}},
+    )
+    assert resp.status_code == 422
+    assert client.get(f"/api/meetings/{meeting.id}").json()["speaker_labels"] == {}
+
+
+def test_patch_meeting_404(client):
+    assert client.patch("/api/meetings/999", json={"speaker_labels": {}}).status_code == 404
+
+
 def test_upload_rejects_oversized_file(client, monkeypatch):
     from app.core.config import settings
 

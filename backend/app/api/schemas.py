@@ -12,6 +12,9 @@ class SegmentOut(BaseModel):
     t_end: float
     text: str
     speaker: str | None
+    # Mapped team name when the user confirmed one, else the raw diarization label —
+    # computed server-side (models.display_speaker) so the frontend never remaps.
+    speaker_display: str | None
 
 
 class TaskOut(BaseModel):
@@ -83,6 +86,15 @@ class MeetingDetailOut(MeetingOut):
     segments: list[SegmentOut]
     tasks: list[TaskOut]
     brief: MeetingBriefOut | None
+    # {"SPEAKER_00": "Andriy Tretiak"} — user-confirmed mapping of diarization labels.
+    speaker_labels: dict[str, str]
+    # Sorted unique diarization labels present in the transcript (Meeting.detected_speakers).
+    detected_speakers: list[str]
+
+
+class MeetingPatchIn(BaseModel):
+    # Merged into the stored mapping: an empty value removes that label's mapping.
+    speaker_labels: dict[str, str] | None = None
 
 
 class TaskCreateIn(BaseModel):

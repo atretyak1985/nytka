@@ -72,6 +72,28 @@ def test_extraction_partial_failure_reraises_without_commit(db_session) -> None:
     assert db_session.query(Task).filter_by(meeting_id=meeting.id).count() == 0
 
 
+def test_extraction_prompt_contains_speaker_names_when_mapped(db_session) -> None:
+    meeting = Meeting(project_id=1, title="m", source_filename="m.mp4", media_path="/x")
+    db_session.add(meeting)
+    db_session.flush()
+    db_session.add(TranscriptSegment(
+        meeting_id=meeting.id, t_start=0, t_end=5, text="я зроблю логін-форму", speaker="SPEAKER_00",
+    ))
+    meeting.speaker_labels = {"SPEAKER_00": "Олена Коваль"}
+    db_session.commit()
+
+    client = MagicMock()
+    client.chat.completions.create.return_value = ExtractionResult(tasks=[])
+    with patch("app.llm.extraction.get_client", return_value=client):
+        extract_tasks_for_meeting(db_session, meeting)
+
+    user_texts = [
+        m["content"] for m in client.chat.completions.create.call_args.kwargs["messages"]
+        if m["role"] == "user"
+    ]
+    assert any("[00:00] Олена Коваль: я зроблю логін-форму" in t for t in user_texts)
+
+
 def test_project_context_block_builds_and_skips() -> None:
     from app.llm.prompts import project_context_block
 

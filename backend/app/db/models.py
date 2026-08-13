@@ -156,6 +156,9 @@ class Meeting(Base):
     progress: Mapped[float | None] = mapped_column(Float, default=None)
     processing_started_at: Mapped[datetime | None] = mapped_column(default=None)
     processing_finished_at: Mapped[datetime | None] = mapped_column(default=None)
+    # {"SPEAKER_00": "Andriy Tretiak", ...} — user-confirmed mapping of diarization
+    # labels to Project.team names. Empty until the user assigns them in the UI.
+    speaker_labels: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     project: Mapped[Project] = relationship(back_populates="meetings")
@@ -166,6 +169,11 @@ class Meeting(Base):
     brief: Mapped[MeetingBrief | None] = relationship(
         back_populates="meeting", cascade="all, delete-orphan", uselist=False
     )
+
+    @property
+    def detected_speakers(self) -> list[str]:
+        """Sorted unique diarization labels present in this meeting's transcript."""
+        return sorted({s.speaker for s in self.segments if s.speaker})
 
 
 class MeetingBrief(Base):
@@ -204,9 +212,21 @@ class TranscriptSegment(Base):
     t_start: Mapped[float] = mapped_column(Float)
     t_end: Mapped[float] = mapped_column(Float)
     text: Mapped[str] = mapped_column(Text)
-    speaker: Mapped[str | None] = mapped_column(String(100), default=None)  # diarization: phase 2
+    speaker: Mapped[str | None] = mapped_column(String(100), default=None)  # raw diarization label
 
     meeting: Mapped[Meeting] = relationship(back_populates="segments")
+
+    @property
+    def speaker_display(self) -> str | None:
+        """Mapped team name when the user confirmed it, else the raw label."""
+        return display_speaker(self.meeting, self.speaker)
+
+
+def display_speaker(meeting: Meeting, raw: str | None) -> str | None:
+    """Mapped team name when the user confirmed it, else the raw diarization label."""
+    if not raw:
+        return None
+    return meeting.speaker_labels.get(raw) or raw
 
 
 class Task(Base):

@@ -42,8 +42,8 @@ queued → processing → transcribing → extracting → summarizing → done
 ```
 
 1. **processing** — FFmpeg (CLI sidecar, atomic `.part` + rename, 10-min timeout) extracts 16 kHz mono wav next to the source media (`<name>.16k.wav`).
-2. **transcribing** — faster-whisper (`auto`: large-v3 on CUDA, medium on CPU; override via `NYTKA_WHISPER_MODEL`) with VAD; segments stored with `t_start`/`t_end`; language and duration recorded on the meeting.
-3. **extracting** — transcript chunked to ~8 000 chars with ~800-char overlap on segment boundaries; each chunk goes through LiteLLM + Instructor with the BA system prompt (`backend/app/llm/prompts.py`, versioned); results validated against a Pydantic schema with retries; duplicates merged across chunks by normalized title. Tasks are created **only as `draft`**.
+2. **transcribing** — faster-whisper (`auto`: large-v3 on CUDA, medium on CPU; override via `NYTKA_WHISPER_MODEL`) with VAD; segments stored with `t_start`/`t_end`; language and duration recorded on the meeting. At the end of this step, **speaker diarization** (sherpa-onnx over the same 16 kHz wav, `backend/app/pipeline/diarize.py`) labels each segment with the `SPEAKER_NN` turn holding the largest time overlap. Best-effort like screenshot capture: with `NYTKA_DIARIZATION=off` or missing models it is skipped (INFO log) and can never error the meeting. The user maps labels to `Project.team` names per meeting (`Meeting.speaker_labels`, `PATCH /api/meetings/{id}`).
+3. **extracting** — transcript chunked to ~8 000 chars with ~800-char overlap on segment boundaries, lines formatted as `[mm:ss] Name: text` when speakers are known (mapped team name, else the raw label); each chunk goes through LiteLLM + Instructor with the BA system prompt (`backend/app/llm/prompts.py`, versioned); results validated against a Pydantic schema with retries; duplicates merged across chunks by normalized title. The assignee is the person who took the work on themselves in the dialogue (or was explicitly delegated it) — not whoever's name was mentioned nearby. Tasks are created **only as `draft`**.
 4. **summarizing** — the same chunks map-reduce into a structured brief (`backend/app/llm/brief.py`): summary, decisions, risks, open questions, next steps, each point with an optional `source_timestamp` deep-link. A brief failure never fails the meeting — the error lands on the `meeting_briefs` row and the brief can be regenerated from the API without re-transcribing.
 
 **Resume semantics:** retry (only from `error`) re-enters the pipeline and skips completed stages — wav exists → skip FFmpeg; segments exist → skip whisper; tasks exist → skip extraction; brief `ready` → skip summarizing. A failed commit rolls back before the error state is persisted, so a meeting can never get stuck mid-status. On server restart, meetings stranded in active statuses are swept to `error` with a retry hint.
@@ -60,7 +60,7 @@ projects 1──∞ meetings 1──∞ transcript_segments
 
 - **projects** — carries the LLM config (`llm_provider`, `llm_model`, `llm_base_url`, `llm_api_key`). One default project is seeded; per-project models are the extension point for multi-project support (phase 2).
 - **tasks.status** — `draft → approved | rejected`, `approved → done | draft`, `rejected → draft`, `done` terminal. Transitions are enforced server-side (409 otherwise) and mirrored in the UI. The pipeline never creates anything but `draft` — human review is a hard invariant.
-- **transcript_segments.speaker** — nullable, reserved for diarization (phase 2).
+- **transcript_segments.speaker** — nullable raw diarization label (`SPEAKER_NN`); `meetings.speaker_labels` maps labels to team names, confirmed by the user (no auto-guessing).
 
 ## Design decisions (deliberate MVP scope)
 

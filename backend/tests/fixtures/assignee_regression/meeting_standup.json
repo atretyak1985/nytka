@@ -1,0 +1,31 @@
+{
+  "title": "Weekly sync — CRM (anonymised)",
+  "team": [
+    {"name": "Олена Коваль", "role": "PM"},
+    {"name": "Nazar Salo", "role": "backend dev"},
+    {"name": "Victor Udintsov", "role": "designer"}
+  ],
+  "speaker_labels": {
+    "SPEAKER_00": "Олена Коваль",
+    "SPEAKER_01": "Nazar Salo",
+    "SPEAKER_02": "Victor Udintsov"
+  },
+  "segments": [
+    {"t_start": 0, "t_end": 6, "text": "Так, почнемо. Перше питання — форма логіну, вона досі падає на мобільному.", "speaker": "SPEAKER_00"},
+    {"t_start": 6, "t_end": 12, "text": "Я подивлюся, це скоріш за все через валідацію токена. Беру на себе, до п'ятниці полагоджу.", "speaker": "SPEAKER_01"},
+    {"t_start": 12, "t_end": 18, "text": "Добре. Друге — нам треба оновити макети сторінки замовлень, клієнт просив компактніший список.", "speaker": "SPEAKER_00"},
+    {"t_start": 18, "t_end": 24, "text": "Це до мене. Зроблю два варіанти до середи і кину в фігму.", "speaker": "SPEAKER_02"},
+    {"t_start": 24, "t_end": 33, "text": "Дякую. Ще Назар казав минулого разу, що експорт у CSV гальмує на великих проєктах. Viktor, ти ж бачив той звіт?", "speaker": "SPEAKER_00"},
+    {"t_start": 33, "t_end": 40, "text": "Бачив, так. Але то не дизайнерська історія, там запит у базу важкий.", "speaker": "SPEAKER_02"},
+    {"t_start": 40, "t_end": 48, "text": "Окей, тоді оптимізацію експорту CSV я допишу собі — все одно буду в тому модулі через логін.", "speaker": "SPEAKER_01"},
+    {"t_start": 48, "t_end": 56, "text": "І останнє: клієнт хоче демо наступного четверга. Олена, підготуєш агенду?", "speaker": "SPEAKER_02"},
+    {"t_start": 56, "t_end": 60, "text": "Так, агенда за мною. Розішлю у вівторок.", "speaker": "SPEAKER_00"},
+    {"t_start": 60, "t_end": 66, "text": "Супер, тоді все. Гарного тижня всім.", "speaker": "SPEAKER_00"}
+  ],
+  "expected": [
+    {"match": "логін", "assignee": "Nazar Salo", "note": "commitment: «Беру на себе» said by SPEAKER_01"},
+    {"match": "макет", "assignee": "Victor Udintsov", "note": "commitment: «Це до мене» said by SPEAKER_02"},
+    {"match": "CSV", "assignee": "Nazar Salo", "note": "trap: Viktor is named right next to the topic but Nazar takes it"},
+    {"match": "агенд", "assignee": "Олена Коваль", "note": "delegated by name and accepted"}
+  ]
+}
