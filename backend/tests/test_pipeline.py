@@ -94,6 +94,43 @@ def test_retry_resumes_after_transcription(db_session, tone_wav) -> None:
     assert meeting.status == MeetingStatus.DONE
 
 
+def test_pipeline_survives_diarization_failure(db_session, tmp_path, monkeypatch) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "diarization", "auto")
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"fake")
+    meeting = _make_meeting(db_session, str(media))
+    db_session.add(TranscriptSegment(meeting_id=meeting.id, t_start=0, t_end=1, text="seg"))
+    db_session.commit()
+    # Real assign_speakers runs; the diarization engine itself explodes.
+    with patch("app.pipeline.runner.extract_audio"), \
+         patch("app.pipeline.runner.extract_tasks_for_meeting", return_value=0), \
+         patch("app.pipeline.diarize.models_available", return_value=True), \
+         patch("app.pipeline.diarize.diarize_wav", side_effect=RuntimeError("onnx exploded")):
+        run_pipeline_with_session(db_session, meeting.id)
+    db_session.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE  # diarization failure swallowed
+    assert meeting.error_message is None
+
+
+def test_pipeline_skips_diarization_when_speakers_exist(db_session, tmp_path) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"fake")
+    meeting = _make_meeting(db_session, str(media))
+    db_session.add(TranscriptSegment(
+        meeting_id=meeting.id, t_start=0, t_end=1, text="seg", speaker="SPEAKER_00",
+    ))
+    db_session.commit()
+    with patch("app.pipeline.runner.extract_audio"), \
+         patch("app.pipeline.runner.extract_tasks_for_meeting", return_value=0), \
+         patch("app.pipeline.runner.assign_speakers") as mock_assign:
+        run_pipeline_with_session(db_session, meeting.id)
+    mock_assign.assert_not_called()  # idempotent: labels already present
+    db_session.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE
+
+
 def _make_screenshot_meeting(db, media: Path) -> tuple[Meeting, Task]:
     """Meeting with a segment (skips transcribe) and one timestamped task (skips extract)."""
     meeting = _make_meeting(db, str(media))
