@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.db.models import KnowledgeStatus, MeetingStatus, TaskPriority, TaskStatus
+from app.db.models import BriefStatus, KnowledgeStatus, MeetingStatus, TaskPriority, TaskStatus
 
 
 class SegmentOut(BaseModel):
@@ -44,6 +44,25 @@ class TaskScreenshotOut(BaseModel):
     # path intentionally excluded — server filesystem detail (like llm_api_key in ProjectOut)
 
 
+class BriefPointOut(BaseModel):
+    text: str
+    source_timestamp: float | None = None
+
+
+class MeetingBriefOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    meeting_id: int
+    summary: str
+    decisions: list[BriefPointOut]
+    risks: list[BriefPointOut]
+    open_questions: list[BriefPointOut]
+    next_steps: list[BriefPointOut]
+    status: BriefStatus
+    error: str | None
+    generated_at: datetime | None
+
+
 class MeetingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -63,6 +82,7 @@ class MeetingOut(BaseModel):
 class MeetingDetailOut(MeetingOut):
     segments: list[SegmentOut]
     tasks: list[TaskOut]
+    brief: MeetingBriefOut | None
 
 
 class TaskCreateIn(BaseModel):

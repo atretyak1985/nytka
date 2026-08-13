@@ -6,8 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
+    BriefStatus,
     KnowledgeStatus,
     Meeting,
+    MeetingBrief,
     MeetingStatus,
     Project,
     Task,
@@ -15,6 +17,7 @@ from app.db.models import (
     TranscriptSegment,
 )
 from app.db.session import SessionLocal
+from app.llm.brief import generate_brief_for_meeting
 from app.llm.extraction import extract_tasks_for_meeting
 from app.pipeline.audio import extract_audio
 from app.pipeline.screenshots import generate_for_task, probe_video_duration
@@ -27,6 +30,7 @@ ACTIVE_STATUSES = {
     MeetingStatus.PROCESSING,
     MeetingStatus.TRANSCRIBING,
     MeetingStatus.EXTRACTING,
+    MeetingStatus.SUMMARIZING,
 }
 
 
@@ -93,6 +97,13 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
             count = extract_tasks_for_meeting(db, meeting)
             logger.info("meeting %s: extracted %s tasks", meeting.id, count)
 
+        # Same resume semantics as segments/tasks: a READY brief survives a retry.
+        brief = db.scalar(select(MeetingBrief).where(MeetingBrief.meeting_id == meeting.id))
+        if brief is None or brief.status != BriefStatus.READY:
+            meeting.progress = 0.0
+            _set_status(db, meeting, MeetingStatus.SUMMARIZING)
+            generate_brief_for_meeting(db, meeting)
+
         _generate_screenshots(db, meeting)
 
         meeting.progress = None
@@ -109,6 +120,21 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
         meeting.error_message = msg
         meeting.processing_finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db.commit()
+
+
+def regenerate_brief(meeting_id: int) -> None:
+    """Entry point for BackgroundTasks (brief regenerate): owns its DB session.
+
+    Unlike the pipeline step this always regenerates, even over a READY brief —
+    that is the whole point of the endpoint. Failures land on the brief row
+    (generate_brief_for_meeting never raises).
+    """
+    with SessionLocal() as db:
+        meeting = db.get(Meeting, meeting_id)
+        if meeting is None:
+            logger.error("regenerate_brief: meeting %s not found", meeting_id)
+            return
+        generate_brief_for_meeting(db, meeting)
 
 
 def _set_status(db: Session, meeting: Meeting, status: MeetingStatus) -> None:

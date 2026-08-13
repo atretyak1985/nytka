@@ -4,16 +4,25 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.schemas import MeetingDetailOut, MeetingOut
+from app.api.schemas import MeetingBriefOut, MeetingDetailOut, MeetingOut
 from app.core.config import settings
-from app.db.models import Meeting, MeetingStatus, Project, Task
+from app.db.models import (
+    BriefStatus,
+    Meeting,
+    MeetingBrief,
+    MeetingStatus,
+    Project,
+    Task,
+    TranscriptSegment,
+)
 from app.db.seed import ensure_default_project
 from app.db.session import get_db
-from app.pipeline.runner import run_pipeline, wav_path_for
+from app.llm.brief import render_brief_markdown
+from app.pipeline.runner import regenerate_brief, run_pipeline, wav_path_for
 from app.pipeline.screenshots import delete_screenshot_files
 
 router = APIRouter(prefix="/api/meetings", tags=["meetings"])
@@ -104,7 +113,55 @@ ACTIVE_STATUSES = {
     MeetingStatus.PROCESSING,
     MeetingStatus.TRANSCRIBING,
     MeetingStatus.EXTRACTING,
+    MeetingStatus.SUMMARIZING,
 }
+
+
+def _get_brief_or_404(db: Session, meeting_id: int) -> tuple[Meeting, MeetingBrief]:
+    meeting = db.get(Meeting, meeting_id)
+    if meeting is None:
+        raise HTTPException(404, "Meeting not found")
+    brief = db.scalar(select(MeetingBrief).where(MeetingBrief.meeting_id == meeting.id))
+    if brief is None:
+        raise HTTPException(404, "Meeting has no brief yet")
+    return meeting, brief
+
+
+@router.get("/{meeting_id}/brief", response_model=MeetingBriefOut)
+def get_meeting_brief(meeting_id: int, db: Session = Depends(get_db)) -> MeetingBrief:
+    _meeting, brief = _get_brief_or_404(db, meeting_id)
+    return brief
+
+
+@router.post("/{meeting_id}/brief/regenerate", response_model=MeetingBriefOut)
+def regenerate_meeting_brief(
+    meeting_id: int, background: BackgroundTasks, db: Session = Depends(get_db)
+) -> MeetingBrief:
+    """Re-run brief generation only. Transcript segments and tasks are untouched."""
+    meeting = db.get(Meeting, meeting_id)
+    if meeting is None:
+        raise HTTPException(404, "Meeting not found")
+    has_segments = db.scalar(
+        select(TranscriptSegment.id).where(TranscriptSegment.meeting_id == meeting.id).limit(1)
+    )
+    if not has_segments:
+        raise HTTPException(409, "Meeting has no transcript to summarize yet")
+    brief = db.scalar(select(MeetingBrief).where(MeetingBrief.meeting_id == meeting.id))
+    if brief is None:
+        brief = MeetingBrief(meeting_id=meeting.id)
+        db.add(brief)
+    brief.status = BriefStatus.PROCESSING
+    brief.error = None
+    db.commit()
+    db.refresh(brief)
+    background.add_task(regenerate_brief, meeting.id)
+    return brief
+
+
+@router.get("/{meeting_id}/brief/markdown", response_class=PlainTextResponse)
+def get_meeting_brief_markdown(meeting_id: int, db: Session = Depends(get_db)) -> PlainTextResponse:
+    meeting, brief = _get_brief_or_404(db, meeting_id)
+    return PlainTextResponse(render_brief_markdown(meeting, brief), media_type="text/markdown")
 
 
 @router.post("/{meeting_id}/reextract", response_model=MeetingOut)
