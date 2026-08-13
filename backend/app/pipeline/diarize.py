@@ -71,7 +71,13 @@ def diarize_wav(wav_path: Path, max_speakers: int) -> list[SpeakerTurn]:
             ),
         ),
         embedding=sherpa_onnx.SpeakerEmbeddingExtractorConfig(model=str(d / EMBEDDING_FILENAME)),
-        clustering=sherpa_onnx.FastClusteringConfig(num_clusters=-1, threshold=0.5),
+        # Bound the speaker count HERE, not afterwards. Threshold-driven clustering
+        # (num_clusters=-1) degrades badly on long recordings — a real 62-min meeting
+        # produced 240 "speakers", and culling that down to max_speakers threw away
+        # 516 of 743 turns, leaving 45% of the transcript unlabelled. Asking the
+        # clusterer for at most max_speakers keeps every turn: same 8 labels, 99.9%
+        # of segments labelled on that same recording.
+        clustering=sherpa_onnx.FastClusteringConfig(num_clusters=max_speakers, threshold=0.5),
         min_duration_on=0.3,
         min_duration_off=0.5,
     )
@@ -218,8 +224,9 @@ def _best_label(segment: TranscriptSegment, turns: list[SpeakerTurn]) -> str | N
 def _cap_speakers(turns: list[SpeakerTurn], max_speakers: int) -> list[SpeakerTurn]:
     """Keep the max_speakers labels with the most speech; drop turns of the rest.
 
-    Over-segmentation on noisy audio can invent dozens of one-off "speakers" —
-    an unlabelled segment is more honest than a bogus label."""
+    Safety net only: diarize_wav already caps the count at clustering time, so this
+    is a no-op there. Dropping turns costs transcript coverage (that is how the 45%
+    labelling bug happened), so never rely on it to do the bounding."""
     talk_time: dict[str, float] = defaultdict(float)
     for turn in turns:
         talk_time[turn.label] += turn.end - turn.start

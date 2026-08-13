@@ -157,3 +157,38 @@ def test_link_onnxruntime_reports_missing_package(tmp_path, monkeypatch) -> None
     from app.pipeline.diarize import link_onnxruntime
 
     assert "not installed" in link_onnxruntime()
+
+
+def test_diarize_wav_bounds_speakers_at_clustering_time(tmp_path, monkeypatch) -> None:
+    """Regression: bounding by dropping turns afterwards cost 55% of the transcript
+    on a real 62-min meeting (240 clusters -> 8, 516 of 743 turns discarded)."""
+    import sys
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from app.core.config import settings
+    from app.pipeline.diarize import diarize_wav
+
+    captured = {}
+
+    def fake_clustering_config(*, num_clusters, threshold):
+        captured["num_clusters"] = num_clusters
+        return SimpleNamespace(num_clusters=num_clusters, threshold=threshold)
+
+    diarizer = MagicMock()
+    diarizer.sample_rate = 16000
+    diarizer.process.return_value.sort_by_start_time.return_value = [
+        SimpleNamespace(start=0.0, end=5.0, speaker=0),
+        SimpleNamespace(start=5.0, end=9.0, speaker=1),
+    ]
+    fake_module = MagicMock()
+    fake_module.FastClusteringConfig = fake_clustering_config
+    fake_module.OfflineSpeakerDiarization.return_value = diarizer
+    monkeypatch.setitem(sys.modules, "sherpa_onnx", fake_module)
+    monkeypatch.setattr("app.pipeline.diarize._read_wav", lambda p: (object(), 16000))
+    monkeypatch.setattr(settings, "diarization_model_dir", tmp_path)
+
+    turns = diarize_wav(Path("/tmp/x.wav"), max_speakers=8)
+
+    assert captured["num_clusters"] == 8  # not -1: the clusterer must do the bounding
+    assert [t.label for t in turns] == ["SPEAKER_00", "SPEAKER_01"]

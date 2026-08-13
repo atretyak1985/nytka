@@ -12,7 +12,7 @@ Backend settings use the `NYTKA_` prefix (pydantic-settings; also read from `bac
 | `NYTKA_MAX_UPLOAD_MB` | `2048` | Upload size limit; larger files get 413. |
 | `NYTKA_DIARIZATION` | `auto` | Speaker diarization: `auto` runs it when the models are installed, `off` disables it. Missing models are never an error — the step is skipped with an INFO log and segments keep `speaker = null`. CI sets `off`. |
 | `NYTKA_DIARIZATION_MODEL_DIR` | `<data_dir>/models/diarization` | Where the diarization ONNX models live (`segmentation.onnx` + `embedding.onnx`). |
-| `NYTKA_DIARIZATION_MAX_SPEAKERS` | `8` | Cap on distinct speaker labels per meeting; extra low-talk-time "speakers" from over-segmentation are dropped (their segments stay unlabelled). |
+| `NYTKA_DIARIZATION_MAX_SPEAKERS` | `8` | Upper bound on distinct speaker labels per meeting, applied by the clusterer itself. Raise it for a large meeting where distinct voices are being merged; a value below the real speaker count merges people, it does not leave segments unlabelled. |
 
 ### Speaker diarization (optional)
 
