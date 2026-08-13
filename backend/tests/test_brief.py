@@ -110,6 +110,56 @@ def test_brief_regeneration_reuses_row(db_session) -> None:
     assert db_session.query(MeetingBrief).filter_by(meeting_id=meeting.id).count() == 1
 
 
+def _brief_index_rows(db, meeting_id: int) -> list[str]:
+    from sqlalchemy import text
+
+    return [
+        r[0]
+        for r in db.execute(
+            text("SELECT text FROM search_index WHERE kind = 'brief' AND meeting_id = :mid"),
+            {"mid": meeting_id},
+        ).all()
+    ]
+
+
+def test_ready_brief_lands_in_the_search_index(db_session) -> None:
+    meeting = _meeting_with_segments(db_session, ["текст"])
+    client = MagicMock()
+    client.chat.completions.create.return_value = _brief_result()
+    with patch("app.llm.brief.get_client", return_value=client):
+        generate_brief_for_meeting(db_session, meeting)
+
+    rows = _brief_index_rows(db_session, meeting.id)
+    assert len(rows) == 1
+    # Summary plus every point of every section is searchable.
+    assert "The team reviewed the demo." in rows[0]
+    assert "Ship the login form." in rows[0]
+    assert "Who owns QA?" in rows[0]
+    assert "Schedule a follow-up." in rows[0]
+
+
+def test_brief_regeneration_does_not_duplicate_index_rows(db_session) -> None:
+    meeting = _meeting_with_segments(db_session, ["текст"])
+    client = MagicMock()
+    client.chat.completions.create.side_effect = [_brief_result(), _brief_result(" v2")]
+    with patch("app.llm.brief.get_client", return_value=client):
+        generate_brief_for_meeting(db_session, meeting)
+        generate_brief_for_meeting(db_session, meeting)
+
+    rows = _brief_index_rows(db_session, meeting.id)
+    assert len(rows) == 1  # upsert, not append
+    assert "v2" in rows[0]  # and it carries the regenerated text
+
+
+def test_failed_brief_is_not_indexed(db_session) -> None:
+    meeting = _meeting_with_segments(db_session, ["текст"])
+    client = MagicMock()
+    client.chat.completions.create.side_effect = RuntimeError("boom")
+    with patch("app.llm.brief.get_client", return_value=client):
+        generate_brief_for_meeting(db_session, meeting)
+    assert _brief_index_rows(db_session, meeting.id) == []
+
+
 def _brief_row(**overrides) -> MeetingBrief:
     fields = dict(
         meeting_id=1,

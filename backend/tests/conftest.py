@@ -12,6 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
+from app.db.fts import create_fts
 from app.db.seed import ensure_default_project
 from app.db.session import get_db
 from app.main import app
@@ -23,6 +24,9 @@ def db_session():
         "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
     Base.metadata.create_all(engine)
+    # metadata.create_all cannot create virtual tables or triggers — without this the
+    # FTS index simply does not exist and every search/trigger test fails on "no such table".
+    create_fts(engine)
     TestingSession = sessionmaker(bind=engine, expire_on_commit=False)
     with TestingSession() as session:
         ensure_default_project(session)
