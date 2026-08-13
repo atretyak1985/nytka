@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.schemas import MeetingDetailOut, MeetingOut
+from app.api.schemas import MeetingDetailOut, MeetingOut, MeetingPatchIn
 from app.core.config import settings
 from app.db.models import Meeting, MeetingStatus, Project, Task
 from app.db.seed import ensure_default_project
@@ -81,6 +81,36 @@ def get_meeting(meeting_id: int, db: Session = Depends(get_db)) -> Meeting:
     meeting = db.get(Meeting, meeting_id)
     if meeting is None:
         raise HTTPException(404, "Meeting not found")
+    return meeting
+
+
+@router.patch("/{meeting_id}", response_model=MeetingDetailOut)
+def patch_meeting(meeting_id: int, payload: MeetingPatchIn, db: Session = Depends(get_db)) -> Meeting:
+    """Update the meeting's speaker-label mapping (diarization label → team name).
+
+    Merge semantics: only the labels present in the payload change; an empty value
+    removes that label's mapping. Keys must be detected labels, values team names.
+    """
+    meeting = db.get(Meeting, meeting_id)
+    if meeting is None:
+        raise HTTPException(404, "Meeting not found")
+    if payload.speaker_labels is not None:
+        detected = set(meeting.detected_speakers)
+        team_names = {m.get("name", "").strip() for m in meeting.project.team} - {""}
+        labels = dict(meeting.speaker_labels)
+        for label, name in payload.speaker_labels.items():
+            if label not in detected:
+                raise HTTPException(422, f"Unknown speaker label '{label}' for this meeting")
+            name = name.strip()
+            if not name:
+                labels.pop(label, None)
+            elif name not in team_names:
+                raise HTTPException(422, f"'{name}' is not on the project team")
+            else:
+                labels[label] = name
+        meeting.speaker_labels = labels
+        db.commit()
+        db.refresh(meeting)
     return meeting
 
 

@@ -34,3 +34,30 @@ def test_splits_with_overlap() -> None:
 def test_invalid_overlap_raises() -> None:
     with pytest.raises(ValueError):
         build_chunks([Seg(0, "hello")], max_chars=100, overlap_chars=100)
+
+
+class SpokenSeg(Seg):
+    def __init__(self, t_start: float, text: str, speaker: str | None):
+        super().__init__(t_start, text)
+        self.speaker = speaker
+
+
+def test_speaker_lines_use_mapped_name_then_raw_label() -> None:
+    segs = [
+        SpokenSeg(0, "беру логін", "SPEAKER_00"),
+        SpokenSeg(5, "окей", "SPEAKER_01"),  # unmapped — raw label shown
+        SpokenSeg(10, "без спікера", None),
+    ]
+    chunks = build_chunks(segs, speaker_names={"SPEAKER_00": "Олена"})
+    assert "[00:00] Олена: беру логін" in chunks[0]
+    assert "[00:05] SPEAKER_01: окей" in chunks[0]
+    assert "[00:10] без спікера" in chunks[0]
+
+
+def test_no_speakers_output_identical_to_plain_call() -> None:
+    # Backward compatibility: segments without speakers must produce byte-identical
+    # output whether or not a mapping is supplied.
+    segs = [Seg(0, "hello"), Seg(5, "world")]
+    spoken = [SpokenSeg(0, "hello", None), SpokenSeg(5, "world", None)]
+    assert build_chunks(segs) == build_chunks(spoken, speaker_names={"SPEAKER_00": "Олена"})
+    assert build_chunks(segs)[0] == "[00:00] hello\n[00:05] world"

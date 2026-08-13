@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     database_url: str = ""
     whisper_model: str = "auto"  # auto | tiny | medium | large-v3
     max_upload_mb: int = 2048
+    diarization: str = "auto"  # auto | off; off (or missing models) skips the step softly
+    diarization_model_dir: Path | None = None  # default: data_dir / "models" / "diarization"
+    diarization_max_speakers: int = 8
 
     model_config = {"env_prefix": "NYTKA_", "env_file": ".env"}
 
@@ -23,6 +26,10 @@ class Settings(BaseSettings):
     @property
     def screenshots_dir(self) -> Path:
         return self.data_dir / "screenshots"
+
+    @property
+    def diarization_models_dir(self) -> Path:
+        return self.diarization_model_dir or self.data_dir / "models" / "diarization"
 
     @property
     def db_url(self) -> str:

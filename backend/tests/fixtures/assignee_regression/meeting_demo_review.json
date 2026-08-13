@@ -1,0 +1,30 @@
+{
+  "title": "Demo review — device dashboard (anonymised)",
+  "team": [
+    {"name": "Олена Коваль", "role": "PM"},
+    {"name": "Nazar Salo", "role": "backend dev"},
+    {"name": "Andrii Tretiak", "role": "frontend dev"}
+  ],
+  "speaker_labels": {
+    "SPEAKER_00": "Олена Коваль",
+    "SPEAKER_01": "Andrii Tretiak",
+    "SPEAKER_02": "Nazar Salo"
+  },
+  "segments": [
+    {"t_start": 0, "t_end": 7, "text": "Показую дашборд. Отут графік температури, він оновлюється раз на п'ять секунд.", "speaker": "SPEAKER_01"},
+    {"t_start": 7, "t_end": 14, "text": "Бачу баг: коли пристрій офлайн, графік показує нуль замість розриву. Це вводить в оману.", "speaker": "SPEAKER_00"},
+    {"t_start": 14, "t_end": 20, "text": "Так, це фронтова історія, я поправлю — буде розрив лінії і сірий бейдж офлайн.", "speaker": "SPEAKER_01"},
+    {"t_start": 20, "t_end": 28, "text": "Ще помітив: історія за місяць вантажиться секунд десять. Андрій скаржився теж. То бекенд, агрегації немає — беру.", "speaker": "SPEAKER_02"},
+    {"t_start": 28, "t_end": 36, "text": "Добре. І експорт звіту в PDF — клієнт питав ще раз. Назаре, це ж у тебе в беклозі?", "speaker": "SPEAKER_00"},
+    {"t_start": 36, "t_end": 42, "text": "У мене, так, але руки не дійшли. Ставлю на наступний спринт.", "speaker": "SPEAKER_02"},
+    {"t_start": 42, "t_end": 50, "text": "Останнє: нотифікації. Поки незрозуміло, пуш чи імейл. Треба спитати клієнта, без цього не починаємо.", "speaker": "SPEAKER_00"},
+    {"t_start": 50, "t_end": 55, "text": "Окей, це питання відкрите, нікому не призначаємо поки що.", "speaker": "SPEAKER_00"},
+    {"t_start": 55, "t_end": 60, "text": "Все, дякую за демо.", "speaker": "SPEAKER_00"}
+  ],
+  "expected": [
+    {"match": "офлайн", "assignee": "Andrii Tretiak", "note": "commitment: «я поправлю» said by SPEAKER_01"},
+    {"match": "історі", "assignee": "Nazar Salo", "note": "trap: Андрій mentioned as a complainer; Nazar says «беру»"},
+    {"match": "PDF", "assignee": "Nazar Salo", "note": "delegated by name and accepted"},
+    {"match": "нотифікац", "assignee": null, "note": "explicitly left unassigned — must stay null"}
+  ]
+}

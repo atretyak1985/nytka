@@ -9,6 +9,17 @@ def format_timestamp(seconds: float) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
+def _transcript_line(segment, speaker_names: dict[str, str] | None) -> str:
+    """'[mm:ss] Name: text' when the segment has a speaker (mapped team name when the
+    user confirmed one, raw label otherwise); byte-identical '[mm:ss] text' without."""
+    ts = format_timestamp(segment.t_start)
+    speaker = getattr(segment, "speaker", None)
+    if speaker:
+        name = (speaker_names or {}).get(speaker) or speaker
+        return f"[{ts}] {name}: {segment.text}"
+    return f"[{ts}] {segment.text}"
+
+
 def chunk_text(text: str, max_chars: int = 8000, overlap_chars: int = 400) -> list[str]:
     """Split free-form text into overlapping chunks on line boundaries.
 
@@ -43,11 +54,17 @@ def chunk_text(text: str, max_chars: int = 8000, overlap_chars: int = 400) -> li
     return chunks
 
 
-def build_chunks(segments: Sequence, max_chars: int = 8000, overlap_chars: int = 800) -> list[str]:
-    """Join segments as '[mm:ss] text' lines; split on segment boundaries with tail overlap."""
+def build_chunks(
+    segments: Sequence,
+    max_chars: int = 8000,
+    overlap_chars: int = 800,
+    speaker_names: dict[str, str] | None = None,
+) -> list[str]:
+    """Join segments as '[mm:ss] Speaker: text' lines (or '[mm:ss] text' when the
+    speaker is unknown); split on segment boundaries with tail overlap."""
     if overlap_chars >= max_chars:
         raise ValueError(f"overlap_chars ({overlap_chars}) must be less than max_chars ({max_chars})")
-    lines = [f"[{format_timestamp(s.t_start)}] {s.text}" for s in segments if s.text.strip()]
+    lines = [_transcript_line(s, speaker_names) for s in segments if s.text.strip()]
     for line in lines:
         if len(line) > max_chars:
             logger.warning("transcript line exceeds max_chars (%d > %d); chunk will oversize", len(line), max_chars)
