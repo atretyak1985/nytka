@@ -8,6 +8,8 @@ import { ArrowLeft, Check, RotateCw } from "lucide-react";
 import { useMeeting, useReextractMeeting, useRetryMeeting } from "@/features/meetings/hooks";
 import { ProcessingStats } from "@/features/meetings/ProcessingStats";
 import { DeleteMeetingButton } from "@/features/meetings/DeleteMeetingButton";
+import { SpeakerMap } from "@/features/meetings/SpeakerMap";
+import { useProject } from "@/features/projects/hooks";
 import { usePatchTask } from "@/features/tasks/hooks";
 import { JiraApproveDialog } from "@/features/tasks/JiraApproveDialog";
 import { ACTIVE_STATUSES, type MeetingStatus, type Task } from "@/lib/client";
@@ -63,6 +65,7 @@ export default function MeetingDetailPage({
   const highlightSeg = segParam !== null ? Number(segParam) : null;
 
   const { data: meeting, isLoading } = useMeeting(Number(meetingId));
+  const { data: project } = useProject(projectId);
   const retryMeeting = useRetryMeeting();
   const reextractMeeting = useReextractMeeting();
   const patchTask = usePatchTask();
@@ -245,6 +248,10 @@ export default function MeetingDetailPage({
       </div>
 
       <div className="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="flex flex-col gap-4.5">
+        {meeting.detected_speakers.length > 0 && (
+          <SpeakerMap meeting={meeting} team={project?.team ?? []} />
+        )}
         <div className="overflow-hidden rounded-bb-frame border border-bb-line bg-bb-surface">
           <div className="flex items-center justify-between border-b border-bb-line px-5 py-3.5">
             <span className="font-mono text-[10px] tracking-[0.14em] text-bb-muted uppercase">Transcript</span>
@@ -271,8 +278,8 @@ export default function MeetingDetailPage({
                     {formatTimestamp(segment.t_start)}
                   </button>
                   <div>
-                    <span className={`font-mono text-[10px] font-semibold tracking-[0.06em] uppercase ${speakerColor(segment.speaker)}`}>
-                      {segment.speaker ?? "Unknown"}
+                    <span className={`font-mono text-[10px] font-semibold tracking-[0.06em] uppercase ${speakerColor(segment.speaker_display)}`}>
+                      {segment.speaker_display ?? "Unknown"}
                     </span>
                     <p className="m-0 mt-0.75 text-[13px] leading-relaxed text-bb-ink-2" style={{ textWrap: "pretty" }}>
                       {segment.text}
@@ -290,6 +297,7 @@ export default function MeetingDetailPage({
               <p className="m-5 text-[12.5px] text-bb-muted">The transcript will appear once processing completes.</p>
             )}
           </div>
+        </div>
         </div>
 
         <div className="flex flex-col gap-3.5">

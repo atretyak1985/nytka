@@ -37,7 +37,14 @@ export interface paths {
         delete: operations["delete_meeting_api_meetings__meeting_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Patch Meeting
+         * @description Update the meeting's speaker-label mapping (diarization label → team name).
+         *
+         *     Merge semantics: only the labels present in the payload change; an empty value
+         *     removes that label's mapping. Keys must be detected labels, values team names.
+         */
+        patch: operations["patch_meeting_api_meetings__meeting_id__patch"];
         trace?: never;
     };
     "/api/meetings/{meeting_id}/retry": {
@@ -617,6 +624,12 @@ export interface components {
             segments: components["schemas"]["SegmentOut"][];
             /** Tasks */
             tasks: components["schemas"]["TaskOut"][];
+            /** Speaker Labels */
+            speaker_labels: {
+                [key: string]: string;
+            };
+            /** Detected Speakers */
+            detected_speakers: string[];
         };
         /** MeetingOut */
         MeetingOut: {
@@ -646,6 +659,13 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** MeetingPatchIn */
+        MeetingPatchIn: {
+            /** Speaker Labels */
+            speaker_labels?: {
+                [key: string]: string;
+            } | null;
         };
         /**
          * MeetingStatus
@@ -798,6 +818,8 @@ export interface components {
             text: string;
             /** Speaker */
             speaker: string | null;
+            /** Speaker Display */
+            speaker_display: string | null;
         };
         /** TaskCreateIn */
         TaskCreateIn: {
@@ -1041,6 +1063,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_meeting_api_meetings__meeting_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeetingPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingDetailOut"];
+                };
             };
             /** @description Validation Error */
             422: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ACTIVE_STATUSES, api } from "@/lib/client";
+import { ACTIVE_STATUSES, api, type MeetingPatch } from "@/lib/client";
 
 /** Meetings for a project (or all, if omitted). Polls every 2s while any meeting is active. */
 export function useMeetings(projectId?: number) {
@@ -54,6 +54,17 @@ export function useDeleteMeeting() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["meetings"] });
       void qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+}
+
+/** Update meeting fields (currently the speaker-label mapping). */
+export function usePatchMeeting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...payload }: { id: number } & MeetingPatch) => api.patchMeeting(id, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["meetings"] });
     },
   });
 }
