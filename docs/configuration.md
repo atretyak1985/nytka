@@ -22,7 +22,7 @@ Diarization runs fully offline via [sherpa-onnx](https://github.com/k2-fsa/sherp
 make -C infrastructure install-diarization
 ```
 
-This runs `uv sync --extra diarization` and downloads two models (~44 MB total: pyannote segmentation-3.0 ONNX export + 3D-Speaker ERes2Net embeddings) into `NYTKA_DIARIZATION_MODEL_DIR`. `make -C infrastructure doctor` reports whether the models are present. After a meeting is processed, map the detected `SPEAKER_NN` labels to team members on the meeting page and re-extract so task assignees use real names.
+This runs `uv sync --extra diarization` and downloads two models (~44 MB total: pyannote segmentation-3.0 ONNX export + 3D-Speaker ERes2Net embeddings) into `NYTKA_DIARIZATION_MODEL_DIR`. It also links the ONNX Runtime shared library into the sherpa-onnx package: the wheels do not bundle it, so `import sherpa_onnx` fails with a `libonnxruntime` load error until it is linked. `make -C infrastructure doctor` reports whether the models are present. After a meeting is processed, map the detected `SPEAKER_NN` labels to team members on the meeting page and re-extract so task assignees use real names.
 
 Frontend: `frontend/.env.local` (gitignored)
 

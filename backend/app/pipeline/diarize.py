@@ -10,13 +10,15 @@ Models are downloaded once via `python -m app.pipeline.diarize --download`
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import logging
 import tarfile
 import tempfile
-import urllib.request
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+
+import httpx
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -125,6 +127,52 @@ def assign_speakers(db: Session, meeting: Meeting, wav_path: Path) -> int:
         return 0
 
 
+def _download(url: str, dest: Path) -> None:
+    """Stream a release asset to disk.
+
+    httpx (not urllib) on purpose: urllib trusts the OS trust store, which on macOS
+    leaves a python.org interpreter with no CA bundle -> CERTIFICATE_VERIFY_FAILED.
+    httpx ships certifi, so this works on a clean machine.
+    """
+    with httpx.stream("GET", url, follow_redirects=True, timeout=120.0) as resp:
+        resp.raise_for_status()
+        with dest.open("wb") as out:
+            for chunk in resp.iter_bytes(1024 * 1024):
+                out.write(chunk)
+
+
+def link_onnxruntime() -> str:
+    """Make the onnxruntime shared library visible to the sherpa-onnx extension.
+
+    The sherpa-onnx wheels do not bundle libonnxruntime; the extension looks for it
+    next to itself (@rpath/../lib) while pip puts it inside the onnxruntime package.
+    Without this link `import sherpa_onnx` dies with an ImportError at load time.
+    Idempotent; returns a human-readable outcome for the installer output.
+    """
+    # find_spec, not import: importing sherpa_onnx is exactly what fails while the
+    # library is missing, so locate both packages without executing them.
+    packages = {}
+    for name in ("sherpa_onnx", "onnxruntime"):
+        spec = importlib.util.find_spec(name)
+        if spec is None or not spec.submodule_search_locations:
+            return f"skipped: {name} is not installed (uv sync --extra diarization)"
+        packages[name] = Path(next(iter(spec.submodule_search_locations)))
+
+    lib_dir = packages["sherpa_onnx"] / "lib"
+    if not lib_dir.is_dir():
+        return f"skipped: no sherpa_onnx lib dir at {lib_dir}"
+    # macOS ships .dylib, Linux .so; the extension asks for the unversioned name.
+    for pattern, linkname in (("libonnxruntime*.dylib", "libonnxruntime.dylib"),
+                              ("libonnxruntime.so*", "libonnxruntime.so")):
+        if (lib_dir / linkname).exists():
+            return f"already linked: {lib_dir / linkname}"
+        sources = sorted((packages["onnxruntime"] / "capi").glob(pattern))
+        if sources:
+            (lib_dir / linkname).symlink_to(sources[-1])
+            return f"linked {lib_dir / linkname} -> {sources[-1]}"
+    return "skipped: no onnxruntime shared library found (Windows install?)"
+
+
 def download_models(target: Path) -> None:
     """CLI helper for `python -m app.pipeline.diarize --download`."""
     target.mkdir(parents=True, exist_ok=True)
@@ -136,7 +184,7 @@ def download_models(target: Path) -> None:
         print(f"downloading segmentation model → {segmentation}")
         with tempfile.TemporaryDirectory() as tmp:
             archive = Path(tmp) / "segmentation.tar.bz2"
-            urllib.request.urlretrieve(SEGMENTATION_URL, archive)
+            _download(SEGMENTATION_URL, archive)
             with tarfile.open(archive, "r:bz2") as tar:
                 member = next(m for m in tar.getmembers() if m.name.endswith("model.onnx"))
                 extracted = tar.extractfile(member)
@@ -149,8 +197,10 @@ def download_models(target: Path) -> None:
         print(f"already present: {embedding}")
     else:
         print(f"downloading speaker-embedding model → {embedding}")
-        urllib.request.urlretrieve(EMBEDDING_URL, embedding)
+        _download(EMBEDDING_URL, embedding)
         print(f"saved {embedding} ({embedding.stat().st_size // 1024} KiB)")
+
+    print(f"onnxruntime library: {link_onnxruntime()}")
 
 
 def _best_label(segment: TranscriptSegment, turns: list[SpeakerTurn]) -> str | None:

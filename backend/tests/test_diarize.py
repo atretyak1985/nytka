@@ -110,3 +110,50 @@ def test_cap_speakers_keeps_most_talkative() -> None:
     capped = _cap_speakers(turns, max_speakers=2)
     assert {t.label for t in capped} == {"SPEAKER_00", "SPEAKER_01"}
     assert _cap_speakers(turns, max_speakers=8) == turns
+
+
+def _fake_packages(tmp_path: Path, lib_name: str) -> tuple[Path, Path]:
+    """Minimal on-disk stand-ins for the sherpa_onnx and onnxruntime packages."""
+    sherpa_lib = tmp_path / "sherpa_onnx" / "lib"
+    sherpa_lib.mkdir(parents=True)
+    ort_capi = tmp_path / "onnxruntime" / "capi"
+    ort_capi.mkdir(parents=True)
+    (ort_capi / lib_name).write_bytes(b"\x00")
+    return sherpa_lib, ort_capi
+
+
+def _patch_find_spec(monkeypatch, tmp_path: Path) -> None:
+    """find_spec must not execute the packages — mirror that with plain specs."""
+    import importlib.util
+    from types import SimpleNamespace
+
+    def fake_find_spec(name):
+        return SimpleNamespace(submodule_search_locations=[str(tmp_path / name)])
+
+    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
+
+
+def test_link_onnxruntime_creates_and_reuses_link(tmp_path, monkeypatch) -> None:
+    """The wheels do not bundle libonnxruntime, so importing sherpa_onnx dies until
+    the installer links it in — the repair must work without importing either package."""
+    from app.pipeline.diarize import link_onnxruntime
+
+    sherpa_lib, ort_capi = _fake_packages(tmp_path, "libonnxruntime.1.27.0.dylib")
+    _patch_find_spec(monkeypatch, tmp_path)
+
+    result = link_onnxruntime()
+    link = sherpa_lib / "libonnxruntime.dylib"
+    assert "linked" in result
+    assert link.is_symlink()
+    assert link.resolve() == (ort_capi / "libonnxruntime.1.27.0.dylib").resolve()
+
+    assert "already linked" in link_onnxruntime()  # idempotent: no exception, no relink
+
+
+def test_link_onnxruntime_reports_missing_package(tmp_path, monkeypatch) -> None:
+    import importlib.util
+
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
+    from app.pipeline.diarize import link_onnxruntime
+
+    assert "not installed" in link_onnxruntime()
