@@ -472,6 +472,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search
+         * @description Ranked hits across this project's transcripts, tasks and briefs.
+         *
+         *     A blank or punctuation-only `q` is an empty result, not a 422: the frontend types
+         *     into this endpoint character by character.
+         */
+        get: operations["search_api_projects__project_id__search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask
+         * @description Answer a free-form question from this project's meetings, with citations.
+         *
+         *     Synchronous on purpose: this is an interactive action against a local model, so the
+         *     frontend shows a spinner instead of polling a job.
+         */
+        post: operations["ask_api_projects__project_id__ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -502,6 +548,31 @@ export interface components {
         AppSettingsPatchIn: {
             /** Extraction Prompt */
             extraction_prompt?: string | null;
+        };
+        /** AskCitationOut */
+        AskCitationOut: {
+            /** Meeting Id */
+            meeting_id: number;
+            /** Meeting Title */
+            meeting_title: string;
+            /** T Start */
+            t_start: number | null;
+            /** Quote */
+            quote: string;
+        };
+        /** AskIn */
+        AskIn: {
+            /** Question */
+            question: string;
+        };
+        /** AskOut */
+        AskOut: {
+            /** Answer */
+            answer: string;
+            /** No Data */
+            no_data: boolean;
+            /** Citations */
+            citations: components["schemas"]["AskCitationOut"][];
         };
         /** Body_upload_knowledge_file_api_projects__project_id__knowledge_post */
         Body_upload_knowledge_file_api_projects__project_id__knowledge_post: {
@@ -894,6 +965,31 @@ export interface components {
             llm_base_url?: string | null;
             /** Llm Api Key */
             llm_api_key?: string | null;
+        };
+        /**
+         * SearchHitOut
+         * @description One project-memory search hit (see app/db/fts.py).
+         */
+        SearchHitOut: {
+            /** Kind */
+            kind: string;
+            /** Meeting Id */
+            meeting_id: number | null;
+            /** Meeting Title */
+            meeting_title: string | null;
+            /** Task Id */
+            task_id: number | null;
+            /** T Start */
+            t_start: number | null;
+            /** Snippet */
+            snippet: string;
+        };
+        /** SearchOut */
+        SearchOut: {
+            /** Query */
+            query: string;
+            /** Hits */
+            hits: components["schemas"]["SearchHitOut"][];
         };
         /** SegmentOut */
         SegmentOut: {
@@ -2049,6 +2145,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KnowledgeStateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_api_projects__project_id__search_get: {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ask_api_projects__project_id__ask_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskOut"];
                 };
             };
             /** @description Validation Error */

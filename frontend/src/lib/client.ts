@@ -24,6 +24,10 @@ export type TaskScreenshot = components["schemas"]["TaskScreenshotOut"];
 export type MeetingBrief = components["schemas"]["MeetingBriefOut"];
 export type BriefPoint = components["schemas"]["BriefPointOut"];
 export type BriefStatus = components["schemas"]["BriefStatus"];
+export type SearchResult = components["schemas"]["SearchOut"];
+export type SearchHit = components["schemas"]["SearchHitOut"];
+export type AskAnswer = components["schemas"]["AskOut"];
+export type AskCitation = components["schemas"]["AskCitationOut"];
 
 export const ACTIVE_STATUSES: MeetingStatus[] = ["queued", "processing", "transcribing", "extracting", "summarizing"];
 
@@ -157,4 +161,14 @@ export const api = {
   },
   initKnowledge: (projectId: number) =>
     apiFetch<KnowledgeState>(`/api/projects/${projectId}/knowledge/init`, { method: "POST" }),
+  searchProject: (projectId: number, q: string, limit = 30) =>
+    apiFetch<SearchResult>(
+      `/api/projects/${projectId}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+  askProject: (projectId: number, question: string) =>
+    apiFetch<AskAnswer>(`/api/projects/${projectId}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    }),
 };
