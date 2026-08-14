@@ -35,6 +35,9 @@ class TaskOut(BaseModel):
     jira_issue_key: str | None
     jira_synced_at: datetime | None
     jira_sync_error: str | None
+    # Dedup: a suggestion while the task is a draft, the merge target once status=merged.
+    duplicate_of_task_id: int | None
+    duplicate_reason: str | None
 
 
 class TaskScreenshotOut(BaseModel):
@@ -114,6 +117,10 @@ class TaskPatchIn(BaseModel):
     priority: TaskPriority | None = None
     status: TaskStatus | None = None
     push_to_jira: bool = True  # only consulted on the draft -> approved transition
+
+
+class TaskMergeIn(BaseModel):
+    target_task_id: int
 
 
 class TeamMember(BaseModel):

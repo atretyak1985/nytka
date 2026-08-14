@@ -5,10 +5,17 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.schemas import JiraPreviewOut, TaskCreateIn, TaskOut, TaskPatchIn, TaskScreenshotOut
+from app.api.schemas import (
+    JiraPreviewOut,
+    TaskCreateIn,
+    TaskMergeIn,
+    TaskOut,
+    TaskPatchIn,
+    TaskScreenshotOut,
+)
 from app.db.models import Project, Task, TaskScreenshot, TaskStatus
 from app.db.session import get_db
-from app.jira.service import build_preview, jira_enabled_for, push_task
+from app.jira.service import build_preview, jira_enabled_for, merge_into, push_task
 from app.pipeline.screenshots import delete_screenshot_files
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -20,6 +27,9 @@ ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.APPROVED: {TaskStatus.DONE, TaskStatus.DRAFT},
     TaskStatus.REJECTED: {TaskStatus.DRAFT},
     TaskStatus.DONE: set(),
+    # Terminal, and deliberately not a target of any transition: the only way into
+    # `merged` is POST /{id}/merge, so nobody can fold a task away without the Jira trace.
+    TaskStatus.MERGED: set(),
 }
 
 
@@ -90,9 +100,39 @@ def jira_push(task_id: int, db: Session = Depends(get_db)) -> Task:
     task = db.get(Task, task_id)
     if task is None:
         raise HTTPException(404, "Task not found")
+    if task.status == TaskStatus.MERGED:
+        raise HTTPException(409, "A merged task cannot be pushed to Jira")
     if task.jira_issue_key is not None:
         raise HTTPException(409, f"Already synced as {task.jira_issue_key}")
     push_task(db, task)
+    db.refresh(task)
+    return task
+
+
+@router.post("/{task_id}/merge", response_model=TaskOut)
+def merge_task(task_id: int, payload: TaskMergeIn, db: Session = Depends(get_db)) -> Task:
+    """Fold a draft into an existing task instead of filing a second ticket.
+
+    Explicit user action only — the pipeline never merges on its own; it just flags
+    candidates (app/llm/dedup.py).
+    """
+    task = db.get(Task, task_id)
+    if task is None:
+        raise HTTPException(404, "Task not found")
+    target = db.get(Task, payload.target_task_id)
+    if target is None:
+        raise HTTPException(404, "Target task not found")
+    if task.status != TaskStatus.DRAFT:
+        raise HTTPException(409, f"Only draft tasks can be merged (current: {task.status})")
+    if target.id == task.id:
+        raise HTTPException(409, "A task cannot be merged into itself")
+    if target.project_id != task.project_id:
+        raise HTTPException(409, "Target task belongs to a different project")
+    if target.status in (TaskStatus.REJECTED, TaskStatus.MERGED):
+        raise HTTPException(409, f"Cannot merge into a {target.status} task")
+    error = merge_into(db, task, target)
+    if error is not None:
+        raise HTTPException(502, f"Jira comment failed: {error}")
     db.refresh(task)
     return task
 

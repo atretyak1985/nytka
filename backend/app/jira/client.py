@@ -112,6 +112,20 @@ def create_issue(base_url: str, email: str, token: str, fields: dict) -> tuple[s
         raise JiraError(f"{type(e).__name__}: {e}") from e
 
 
+def add_comment(base_url: str, email: str, token: str, issue_key: str, text: str) -> None:
+    """POST a plain-text comment (converted to ADF) on an existing issue. Raises
+    JiraError on any transport/API failure; the caller decides how to degrade."""
+    try:
+        with _client(base_url, email, token) as c:
+            resp = c.post(
+                f"/rest/api/3/issue/{issue_key}/comment", json={"body": text_to_adf(text)}
+            )
+            if resp.status_code != 201:
+                raise JiraError(f"Jira comment {resp.status_code}: {resp.text[:500]}")
+    except httpx.HTTPError as e:
+        raise JiraError(f"{type(e).__name__}: {e}") from e
+
+
 def add_attachments(base_url: str, email: str, token: str, issue_key: str,
                     paths: list[Path]) -> list[str]:
     """Upload files to an issue. Returns the attachment filenames Jira confirmed.
