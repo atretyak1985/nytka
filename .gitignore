@@ -28,3 +28,11 @@ data/
 .swarmery/
 .claude/worktrees/
 **/.claude/agent-memory/
+.serena/
+*.bak
+
+# generated architecture map (regenerate with /architecture-map)
+architecture-out/
+
+# one-off measurement scripts (hardcode local paths and the dev DB)
+backend/_*.py
