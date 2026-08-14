@@ -24,6 +24,7 @@ class TaskStatus(enum.StrEnum):
     APPROVED = "approved"
     DONE = "done"
     REJECTED = "rejected"
+    MERGED = "merged"  # folded into an existing task/ticket; terminal, reachable only via /merge
 
 
 class TaskPriority(enum.StrEnum):
@@ -254,6 +255,12 @@ class Task(Base):
     jira_issue_key: Mapped[str | None] = mapped_column(String(50), default=None)  # e.g. CRM-42
     jira_synced_at: Mapped[datetime | None] = mapped_column(default=None)
     jira_sync_error: Mapped[str | None] = mapped_column(Text, default=None)
+    # Dedup (phase 4): a flagged candidate is a SUGGESTION until the user merges.
+    # duplicate_of_task_id doubles as the merge target after a merge (status=merged).
+    duplicate_of_task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), default=None)
+    duplicate_reason: Mapped[str | None] = mapped_column(Text, default=None)
+    # Idempotency stamp for the pipeline dedup pass (Retry = resume, not restart).
+    dedup_checked_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

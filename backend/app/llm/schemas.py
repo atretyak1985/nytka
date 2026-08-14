@@ -56,6 +56,16 @@ class AskResult(BaseModel):
     )
 
 
+class DuplicateVerdict(BaseModel):
+    # No defaults, same trap as ExtractionResult/BriefResult.
+    # An index, not a task id: a local model asked for an id will hallucinate one,
+    # while a 1-based index into the list it was shown is range-checkable.
+    duplicate_of: int | None = Field(
+        description="1-based number of the candidate this NEW task duplicates, or null if none"
+    )
+    reason: str = Field(description="One short sentence why (or why not), in the task's language")
+
+
 class AreaList(BaseModel):
     """Structured area/sub-area taxonomy extracted from a project's knowledge sources."""
 
