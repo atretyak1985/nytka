@@ -235,6 +235,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tasks/{task_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge Task
+         * @description Fold a draft into an existing task instead of filing a second ticket.
+         *
+         *     Explicit user action only — the pipeline never merges on its own; it just flags
+         *     candidates (app/llm/dedup.py).
+         */
+        post: operations["merge_task_api_tasks__task_id__merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks/{task_id}/screenshots": {
         parameters: {
             query?: never;
@@ -1022,6 +1045,11 @@ export interface components {
             /** @default medium */
             priority: components["schemas"]["TaskPriority"];
         };
+        /** TaskMergeIn */
+        TaskMergeIn: {
+            /** Target Task Id */
+            target_task_id: number;
+        };
         /** TaskOut */
         TaskOut: {
             /** Id */
@@ -1060,6 +1088,10 @@ export interface components {
             jira_synced_at: string | null;
             /** Jira Sync Error */
             jira_sync_error: string | null;
+            /** Duplicate Of Task Id */
+            duplicate_of_task_id: number | null;
+            /** Duplicate Reason */
+            duplicate_reason: string | null;
         };
         /** TaskPatchIn */
         TaskPatchIn: {
@@ -1106,7 +1138,7 @@ export interface components {
          * TaskStatus
          * @enum {string}
          */
-        TaskStatus: "draft" | "approved" | "done" | "rejected";
+        TaskStatus: "draft" | "approved" | "done" | "rejected" | "merged";
         /** TeamMember */
         TeamMember: {
             /** Name */
@@ -1652,6 +1684,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    merge_task_api_tasks__task_id__merge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskMergeIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

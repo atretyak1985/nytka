@@ -6,7 +6,15 @@ import { Plus, Trash2 } from "lucide-react";
 import type { Task, TaskStatus } from "@/lib/client";
 import { TASK_STATUS, TASK_PRIORITY, formatTimestamp } from "@/lib/design-maps";
 import { Chip } from "@/components/ui/chip";
-import { useTasks, useCreateTask, usePatchTask, useDeleteTask, useJiraPush, STATUS_ACTIONS } from "@/features/tasks/hooks";
+import {
+  useTasks,
+  useCreateTask,
+  usePatchTask,
+  useDeleteTask,
+  useJiraPush,
+  useMergeTask,
+  STATUS_ACTIONS,
+} from "@/features/tasks/hooks";
 import { useMeetings } from "@/features/meetings/hooks";
 import { useProject } from "@/features/projects/hooks";
 import { JiraApproveDialog } from "@/features/tasks/JiraApproveDialog";
@@ -36,6 +44,8 @@ export function TasksTab({ projectId }: { projectId: number }) {
   const meetingTitleById = useMemo(() => new Map((meetings ?? []).map((m) => [m.id, m.title])), [meetings]);
 
   const tasks = allTasks ?? [];
+  // The dedup pass flags a target by id; the row it points at lives in this same list.
+  const taskById = useMemo(() => new Map((allTasks ?? []).map((t) => [t.id, t])), [allTasks]);
   const counts: Record<Filter, number> = {
     all: tasks.length,
     draft: tasks.filter((t) => t.status === "draft").length,
@@ -120,6 +130,9 @@ export function TasksTab({ projectId }: { projectId: number }) {
                 meetingTitle={task.meeting_id ? meetingTitleById.get(task.meeting_id) : undefined}
                 projectId={projectId}
                 areas={project?.task_areas ?? []}
+                duplicateTarget={
+                  task.duplicate_of_task_id !== null ? taskById.get(task.duplicate_of_task_id) : undefined
+                }
                 onApprove={() => handleApprove(task)}
                 onReject={() => handleStatusChange(task.id, "rejected")}
               />
@@ -161,6 +174,11 @@ export function TasksTab({ projectId }: { projectId: number }) {
               task={task}
               projectId={projectId}
               meetingTitle={task.meeting_id ? meetingTitleById.get(task.meeting_id) : undefined}
+              mergedInto={
+                task.duplicate_of_task_id !== null && task.status === "merged"
+                  ? taskById.get(task.duplicate_of_task_id)
+                  : undefined
+              }
               isFirst={i === 0}
               jiraBaseUrl={project?.jira_base_url ?? ""}
               onJiraRetry={() => jiraPush.mutate(task.id)}
@@ -184,6 +202,7 @@ function DraftCard({
   meetingTitle,
   projectId,
   areas,
+  duplicateTarget,
   onApprove,
   onReject,
 }: {
@@ -191,6 +210,7 @@ function DraftCard({
   meetingTitle: string | undefined;
   projectId: number;
   areas: string[];
+  duplicateTarget: Task | undefined;
   onApprove: () => void;
   onReject: () => void;
 }) {
@@ -204,6 +224,9 @@ function DraftCard({
           <p className="m-0 mb-2 font-[family-name:var(--font-display)] text-[13px] leading-relaxed text-bb-ink-2 italic">
             &ldquo;{task.description}&rdquo;
           </p>
+        )}
+        {duplicateTarget && (
+          <DuplicateBanner task={task} target={duplicateTarget} reason={task.duplicate_reason} />
         )}
         <div className="flex flex-wrap items-center gap-3">
           <span className={`font-mono text-[10px] tracking-[0.06em] uppercase ${priority.className}`}>
@@ -257,10 +280,74 @@ function DraftCard({
   );
 }
 
+/** SC-10: the pipeline only ever FLAGS. Merging stays an explicit, confirmed user action,
+ *  and Approve/Reject on a flagged draft keep working exactly as before. */
+function DuplicateBanner({
+  task,
+  target,
+  reason,
+}: {
+  task: Task;
+  target: Task;
+  reason: string | null;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const mergeTask = useMergeTask();
+  const targetLabel = target.jira_issue_key ?? "existing task";
+
+  return (
+    <div className="mb-2.5 rounded-[10px] bg-bb-amber-soft px-3 py-2.5">
+      <p className="m-0 text-[12.5px] text-bb-ink">
+        Possible duplicate of &ldquo;{target.title}&rdquo;
+        {target.jira_issue_key ? ` (${target.jira_issue_key})` : ""}
+      </p>
+      {reason && <p className="m-0 mt-0.5 text-[11.5px] text-bb-ink-2">{reason}</p>}
+      {confirming ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-[11.5px] text-bb-ink-2">
+            {target.jira_issue_key
+              ? `This comments on ${target.jira_issue_key} in Jira and closes this draft as merged.`
+              : "This closes the draft as merged into the existing task."}
+          </span>
+          <button
+            type="button"
+            disabled={mergeTask.isPending}
+            onClick={() =>
+              mergeTask.mutate(
+                { id: task.id, targetTaskId: target.id, targetLabel },
+                { onSettled: () => setConfirming(false) },
+              )
+            }
+            className="h-[26px] rounded-bb-btn bg-bb-burgundy px-3 text-[11.5px] font-semibold text-bb-on-accent transition-colors hover:bg-bb-wine disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy"
+          >
+            {mergeTask.isPending ? "Merging…" : "Confirm merge"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="h-[26px] rounded-bb-btn px-2.5 text-[11.5px] font-medium text-bb-ink-2 transition-colors hover:bg-bb-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="mt-1.5 h-[26px] rounded-bb-btn border border-bb-amber px-2.5 text-[11.5px] font-medium text-bb-amber transition-colors hover:bg-bb-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-bb-burgundy"
+        >
+          Merge into {targetLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function TaskRow({
   task,
   projectId,
   meetingTitle,
+  mergedInto,
   isFirst,
   jiraBaseUrl,
   onJiraRetry,
@@ -270,6 +357,7 @@ function TaskRow({
   task: Task;
   projectId: number;
   meetingTitle: string | undefined;
+  mergedInto: Task | undefined;
   isFirst: boolean;
   jiraBaseUrl: string;
   onJiraRetry: () => void;
@@ -286,7 +374,11 @@ function TaskRow({
     >
       <span className="min-w-0">
         <span className="block truncate text-[13px] font-medium text-bb-ink">{task.title}</span>
-        {task.jira_issue_key ? (
+        {mergedInto ? (
+          <span className="block truncate text-[10.5px] text-bb-violet" title={mergedInto.title}>
+            &rarr; merged into {mergedInto.jira_issue_key ?? mergedInto.title}
+          </span>
+        ) : task.jira_issue_key ? (
           jiraBaseUrl ? (
             <a
               href={`${jiraBaseUrl}/browse/${task.jira_issue_key}`}
