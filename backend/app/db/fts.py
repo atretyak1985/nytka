@@ -88,7 +88,7 @@ SELECT kind, project_id, meeting_id, ref_id, t_start, text,
        snippet(search_index, 0, char(1), char(2), ' … ', 14) AS snippet,
        bm25(search_index) AS score
 FROM search_index
-WHERE search_index MATCH :q AND project_id = :pid{kind_filter}
+WHERE search_index MATCH :q AND project_id = :pid{kind_filter}{meeting_filter}
 ORDER BY score
 LIMIT :limit
 """
@@ -143,6 +143,7 @@ def search_project(
     raw: str,
     *,
     kinds: tuple[str, ...] | None = None,
+    exclude_meeting_id: int | None = None,
     limit: int = 30,
 ) -> list[dict]:
     """Ranked FTS hits scoped to one project.
@@ -150,6 +151,12 @@ def search_project(
     AND semantics first; when that returns nothing, a second pass with OR semantics
     (recall for question-shaped queries). Each hit is
     {kind, meeting_id, ref_id, t_start, text, snippet, score}.
+
+    exclude_meeting_id drops every row belonging to that meeting BEFORE ranking. It
+    exists for the dedup pass (app/llm/dedup.py), which searches with a row that is
+    itself in the index: filtering afterwards is not equivalent, because the self-hit
+    would satisfy the AND pass and suppress the OR fallback that finds the real
+    candidates. Rows with no meeting (manual tasks) are always kept.
     """
     params: dict[str, object] = {"pid": project_id, "limit": limit}
     kind_filter = ""
@@ -157,7 +164,11 @@ def search_project(
         names = [f"k{i}" for i in range(len(kinds))]
         kind_filter = " AND kind IN (" + ", ".join(f":{n}" for n in names) + ")"
         params.update(dict(zip(names, kinds)))
-    sql = text(_SEARCH_SQL.format(kind_filter=kind_filter))
+    meeting_filter = ""
+    if exclude_meeting_id is not None:
+        meeting_filter = " AND (meeting_id IS NULL OR meeting_id != :emid)"
+        params["emid"] = exclude_meeting_id
+    sql = text(_SEARCH_SQL.format(kind_filter=kind_filter, meeting_filter=meeting_filter))
 
     for any_token in (False, True):
         match = fts_query(raw, any_token=any_token)

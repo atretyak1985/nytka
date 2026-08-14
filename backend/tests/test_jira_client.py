@@ -1,4 +1,6 @@
 """Unit tests for the Jira HTTP client. All HTTP is stubbed via httpx.MockTransport."""
+import json
+
 import httpx
 import pytest
 
@@ -252,3 +254,34 @@ def test_list_assignable_users_error_returns_none(monkeypatch):
 def test_list_assignable_users_non_list_payload_returns_none(monkeypatch):
     patch_client(monkeypatch, lambda request: httpx.Response(200, json={"unexpected": "shape"}))
     assert jira_client.list_assignable_users("https://acme.atlassian.net", "a@b.c", "tok", "CRM") is None
+
+
+def test_add_comment_posts_adf_body(monkeypatch):
+    seen = {}
+
+    def handler(request):
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.read())
+        return httpx.Response(201, json={"id": "10001"})
+
+    patch_client(monkeypatch, handler)
+    jira_client.add_comment("https://acme.atlassian.net", "a@b.c", "tok", "CRM-42", "line\n\nother")
+
+    assert seen["path"] == "/rest/api/3/issue/CRM-42/comment"
+    assert seen["body"]["body"]["type"] == "doc"
+    assert [p["content"][0]["text"] for p in seen["body"]["body"]["content"]] == ["line", "other"]
+
+
+def test_add_comment_raises_jira_error_on_non_201(monkeypatch):
+    patch_client(monkeypatch, lambda request: httpx.Response(404, text="No such issue"))
+    with pytest.raises(jira_client.JiraError, match="404"):
+        jira_client.add_comment("https://acme.atlassian.net", "a@b.c", "tok", "CRM-9", "x")
+
+
+def test_add_comment_translates_network_error_to_jira_error(monkeypatch):
+    def handler(request):
+        raise httpx.ConnectError("boom")
+
+    patch_client(monkeypatch, handler)
+    with pytest.raises(jira_client.JiraError, match="ConnectError"):
+        jira_client.add_comment("https://acme.atlassian.net", "a@b.c", "tok", "CRM-9", "x")

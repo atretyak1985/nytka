@@ -1,7 +1,9 @@
 {
   "enabledPlugins": {
+    "architecture-pack@swarmery": true,
     "core@swarmery": true,
     "infra-pack@swarmery": true,
+    "jira-pack@swarmery": true,
     "lsp-pack@swarmery": true,
     "uav-pack@swarmery": true,
     "web-pack@swarmery": true

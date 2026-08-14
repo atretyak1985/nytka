@@ -36,6 +36,7 @@ Brief `status`: `empty | processing | ready | error`. Each point in `decisions/r
 | GET | `/api/tasks` | List tasks, newest first. Filters: `?project_id=&status=&meeting_id=`. |
 | PATCH | `/api/tasks/{id}` | Partial update of `title, description, assignee, priority, status`. Explicit `null` for non-nullable fields → **422**. |
 | DELETE | `/api/tasks/{id}` | **204**, or **404**. |
+| POST | `/api/tasks/{id}/merge` | `{target_task_id}` → fold this draft into an existing task instead of filing a second ticket. When the target carries a `jira_issue_key` and Jira is configured, a comment is posted on that ticket **first**; only then does the draft become `merged`. **404** unknown task/target, **409** source not `draft`, target = source, target in another project, or target `rejected`/`merged`, **502** the Jira comment failed (the draft stays `draft`, so retry or approve is still open). |
 
 Task `status` transitions (server-enforced, illegal → **409**):
 
@@ -44,9 +45,15 @@ draft ──▶ approved ──▶ done (terminal)
   │  ▲        │
   ▼  └────────┘  (back to draft)
 rejected ──▶ draft
+
+draft ──POST /merge──▶ merged (terminal)
 ```
 
+`merged` is reachable **only** through `POST /{id}/merge` — no PATCH leads into or out of it, and `POST /{id}/jira-push` on a merged task is **409**. That is what guarantees a merge always leaves a Jira-side trace.
+
 `priority`: `low | medium | high`. `source_timestamp` (seconds, nullable) links an extracted task back to the transcript moment it came from.
+
+`TaskOut.duplicate_of_task_id` / `duplicate_reason` — set by the pipeline's dedup pass when a fresh draft looks like work the project already tracks. While the task is a `draft` these are a **suggestion only**: Approve and Reject behave exactly as they would without the flag. After a merge, `duplicate_of_task_id` is the task the work was folded into.
 
 ## Projects
 

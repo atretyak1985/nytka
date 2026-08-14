@@ -133,6 +133,12 @@ export const api = {
     }),
   getJiraPreview: (taskId: number) => apiFetch<JiraPreview>(`/api/tasks/${taskId}/jira-preview`),
   jiraPush: (taskId: number) => apiFetch<Task>(`/api/tasks/${taskId}/jira-push`, { method: "POST" }),
+  mergeTask: (id: number, targetTaskId: number) =>
+    apiFetch<Task>(`/api/tasks/${id}/merge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_task_id: targetTaskId }),
+    }),
   listTaskScreenshots: (taskId: number) =>
     apiFetch<TaskScreenshot[]>(`/api/tasks/${taskId}/screenshots`),
   deleteTaskScreenshot: async (taskId: number, screenshotId: number): Promise<void> => {

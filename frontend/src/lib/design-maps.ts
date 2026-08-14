@@ -23,6 +23,8 @@ export const TASK_STATUS: Record<TaskStatus, ChipStyle> = {
   approved: { label: "Approved", className: "bg-bb-sage-soft text-bb-sage border border-transparent" },
   done: { label: "Done", className: "bg-bb-surface-2 text-bb-ink-2 border border-transparent" },
   rejected: { label: "Rejected", className: "bg-transparent text-bb-muted border border-bb-line" },
+  // Own colour, not `done`: merged work was folded elsewhere, not finished here.
+  merged: { label: "Merged", className: "bg-bb-violet-soft text-bb-violet border border-transparent" },
 };
 
 /** Priority → English label + text color class, ported from the design's `PR` map. */

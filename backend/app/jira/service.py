@@ -9,7 +9,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.db.models import Project, Task, TaskPriority
+from app.db.models import Project, Task, TaskPriority, TaskStatus
 from app.jira import client as jira_client
 from app.llm.chunking import format_timestamp
 
@@ -113,6 +113,49 @@ def build_preview(db: Session, task: Task) -> dict:
         "assignee_account_id": assignee_account_id,
         "error": None,
     }
+
+
+def merge_comment_text(task: Task) -> str:
+    """Pure builder (testable without DB/network): what lands in the Jira comment."""
+    lines = [
+        "Duplicate discussed again in Nytka — merged into this ticket.",
+        f"Task: {task.title}",
+    ]
+    if task.description:
+        lines.append(task.description)
+    if task.meeting is not None:
+        source = f"Source: meeting «{task.meeting.title}»"
+        if task.source_timestamp is not None:
+            source += f", video {format_timestamp(task.source_timestamp)}"
+        lines.append(source)
+    return "\n\n".join(lines)
+
+
+def merge_into(db: Session, task: Task, target: Task) -> str | None:
+    """Fold a draft into an existing task. Returns an error string (task untouched)
+    or None on success (task is now MERGED and points at the target).
+
+    Comment-first: when the target lives in Jira and credentials are present, the
+    comment MUST land before the status flips — a failed comment leaves the draft
+    intact so the user can retry. Unlike push_task (where a Jira failure must not
+    block an approve), merge is an explicit action whose whole point is the
+    Jira-side trace, so it fails loudly instead of degrading.
+    """
+    project = db.get(Project, task.project_id)
+    if target.jira_issue_key and jira_enabled_for(project):
+        creds = get_credentials(project)
+        if creds is None:
+            return "Jira credentials are not configured — set them in this project's Settings."
+        try:
+            jira_client.add_comment(*creds, target.jira_issue_key, merge_comment_text(task))
+        except jira_client.JiraError as e:
+            return str(e)
+    # Target without a Jira key (or Jira disabled) is a purely local merge: status and
+    # link, no network. Valid — the comment is only owed when there is a ticket to own it.
+    task.status = TaskStatus.MERGED
+    task.duplicate_of_task_id = target.id
+    db.commit()
+    return None
 
 
 def push_task(db: Session, task: Task) -> None:

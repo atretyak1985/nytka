@@ -177,6 +177,24 @@ def test_and_miss_falls_back_to_or(db_session) -> None:
     assert hits and hits[0]["kind"] == "segment"
 
 
+def test_exclude_meeting_id_drops_rows_before_ranking(db_session) -> None:
+    """Filtering the excluded meeting out AFTER the search is not equivalent: its rows
+    would satisfy the AND pass and starve the OR fallback (the bug the dedup pass hit)."""
+    old = _meeting(db_session, title="Sprint 1")
+    new = _meeting(db_session, title="Sprint 2")
+    db_session.add_all([
+        Task(project_id=1, meeting_id=old.id, title="Fix login timeout", description="session expires"),
+        Task(project_id=1, meeting_id=new.id, title="Fix login timeout", description="expires too fast"),
+        Task(project_id=1, meeting_id=None, title="Fix login timeout", description="filed by hand"),
+    ])
+    db_session.commit()
+
+    raw = "Fix login timeout expires too fast"
+    assert {h["meeting_id"] for h in search_project(db_session, 1, raw, kinds=("task",))} == {new.id}
+    kept = search_project(db_session, 1, raw, kinds=("task",), exclude_meeting_id=new.id)
+    assert {h["meeting_id"] for h in kept} == {old.id, None}  # manual tasks are never excluded
+
+
 def test_empty_query_returns_no_hits(db_session) -> None:
     meeting = _meeting(db_session)
     db_session.add(TranscriptSegment(meeting_id=meeting.id, t_start=0.0, t_end=1.0, text="текст"))

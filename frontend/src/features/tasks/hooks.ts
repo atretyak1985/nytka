@@ -79,6 +79,34 @@ export function useJiraPush() {
   });
 }
 
+/** `API 502: {"detail":"…"}` → the sentence the backend actually wrote. */
+function detailOf(e: Error): string {
+  const start = e.message.indexOf("{");
+  if (start === -1) return e.message;
+  try {
+    const detail = (JSON.parse(e.message.slice(start)) as { detail?: unknown }).detail;
+    return typeof detail === "string" ? detail : e.message;
+  } catch {
+    return e.message;
+  }
+}
+
+export function useMergeTask() {
+  const invalidate = useInvalidateTasks();
+  return useMutation({
+    // targetLabel is carried through: the merged task has no Jira key of its own —
+    // the ticket the work landed in belongs to the target.
+    mutationFn: ({ id, targetTaskId }: { id: number; targetTaskId: number; targetLabel: string }) =>
+      api.mergeTask(id, targetTaskId),
+    onSuccess: (_task, { targetLabel }) => {
+      invalidate();
+      toast.success(`Merged into ${targetLabel}`);
+    },
+    // A failed Jira comment leaves the draft intact — say why, don't dump raw JSON.
+    onError: (e: Error) => toast.error(detailOf(e)),
+  });
+}
+
 export const STATUS_ACTIONS: Record<Task["status"], { label: string; to: TaskStatus }[]> = {
   draft: [
     { label: "Approve", to: "approved" },
@@ -90,4 +118,5 @@ export const STATUS_ACTIONS: Record<Task["status"], { label: string; to: TaskSta
   ],
   rejected: [{ label: "Back to draft", to: "draft" }],
   done: [],
+  merged: [], // terminal: the only door in is POST /merge, and there is no door out
 };

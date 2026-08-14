@@ -23,6 +23,18 @@ def stub_brief_generation(request):
         yield mock_brief
 
 
+@pytest.fixture(autouse=True)
+def stub_dedup(request):
+    """Same reason as the brief stub: the dedup step would reach for the project's
+    LLM for any meeting with drafts. Tests that exercise dedup opt out with
+    @pytest.mark.real_dedup."""
+    if "real_dedup" in request.keywords:
+        yield None
+        return
+    with patch("app.pipeline.runner.flag_duplicates_for_meeting", return_value=0) as mock_dedup:
+        yield mock_dedup
+
+
 @pytest.fixture(scope="session")
 def tone_wav(tmp_path_factory) -> Path:
     """1-second 440Hz tone; enough to drive ffmpeg+whisper code paths."""
@@ -288,3 +300,36 @@ def test_pipeline_skips_screenshots_for_audio_only(db_session, tmp_path) -> None
     mock_gen.assert_not_called()  # no video stream — zero capture attempts
     db_session.refresh(meeting)
     assert meeting.status == MeetingStatus.DONE
+
+
+def test_pipeline_runs_dedup_after_the_brief_step(db_session, tmp_path, stub_dedup) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"fake")
+    meeting = _make_meeting(db_session, str(media))
+    db_session.add(TranscriptSegment(meeting_id=meeting.id, t_start=0, t_end=1, text="seg"))
+    db_session.commit()
+    with patch("app.pipeline.runner.extract_audio"), \
+         patch("app.pipeline.runner.extract_tasks_for_meeting", return_value=1):
+        run_pipeline_with_session(db_session, meeting.id)
+    stub_dedup.assert_called_once()
+    db_session.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE
+
+
+@pytest.mark.real_dedup
+def test_pipeline_survives_dedup_failure(db_session, tmp_path) -> None:
+    """The real flag_duplicates_for_meeting runs; the LLM behind it explodes."""
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"fake")
+    meeting = _make_meeting(db_session, str(media))
+    db_session.add(TranscriptSegment(meeting_id=meeting.id, t_start=0, t_end=1, text="seg"))
+    db_session.add(Task(project_id=1, meeting_id=meeting.id, title="Fix login", description="expires"))
+    db_session.add(Task(project_id=1, title="Fix login", description="expires earlier"))
+    db_session.commit()
+    with patch("app.pipeline.runner.extract_audio"), \
+         patch("app.pipeline.runner.extract_tasks_for_meeting", return_value=0), \
+         patch("app.llm.dedup.get_client", side_effect=RuntimeError("LM Studio is down")):
+        run_pipeline_with_session(db_session, meeting.id)
+    db_session.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE  # dedup failure swallowed
+    assert meeting.error_message is None

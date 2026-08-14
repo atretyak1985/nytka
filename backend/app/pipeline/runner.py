@@ -18,6 +18,7 @@ from app.db.models import (
 )
 from app.db.session import SessionLocal
 from app.llm.brief import generate_brief_for_meeting
+from app.llm.dedup import flag_duplicates_for_meeting
 from app.llm.extraction import extract_tasks_for_meeting
 from app.pipeline.audio import extract_audio
 from app.pipeline.diarize import assign_speakers
@@ -113,6 +114,10 @@ def run_pipeline_with_session(db: Session, meeting_id: int) -> None:
             meeting.progress = 0.0
             _set_status(db, meeting, MeetingStatus.SUMMARIZING)
             generate_brief_for_meeting(db, meeting)
+
+        # No new pipeline status: like screenshots, dedup decorates the result and does
+        # not deserve a visible waiting state. Never raises, idempotent per task.
+        flag_duplicates_for_meeting(db, meeting)
 
         _generate_screenshots(db, meeting)
 
