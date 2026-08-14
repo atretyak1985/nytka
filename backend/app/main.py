@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.knowledge import router as knowledge_router
 from app.api.meetings import router as meetings_router
+from app.api.memory import router as memory_router
 from app.api.projects import router as projects_router
 from app.api.settings import router as settings_router
 from app.api.tasks import router as tasks_router
@@ -55,6 +56,7 @@ app.include_router(tasks_router)
 app.include_router(projects_router)
 app.include_router(settings_router)
 app.include_router(knowledge_router)
+app.include_router(memory_router)
 
 
 @app.get("/api/health")

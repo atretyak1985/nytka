@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.db.fts import index_brief
 from app.db.models import BriefStatus, Meeting, MeetingBrief
 from app.llm.chunking import build_chunks, format_timestamp
 from app.llm.client import get_client, model_and_kwargs
@@ -64,6 +65,7 @@ def generate_brief_for_meeting(db: Session, meeting: Meeting) -> MeetingBrief:
             brief.open_questions = []
             brief.next_steps = []
             brief.generated_at = now_utc()
+            index_brief(db, brief)  # clears any stale index row for this brief
             db.commit()
             return brief
 
@@ -122,6 +124,10 @@ def generate_brief_for_meeting(db: Session, meeting: Meeting) -> MeetingBrief:
         brief.next_steps = [p.model_dump() for p in result.next_steps]
         brief.status = BriefStatus.READY
         brief.generated_at = now_utc()
+        # Project-memory index: briefs carry JSON point lists, so unlike segments and
+        # tasks they cannot be synced by a trigger — the upsert is idempotent, so a
+        # regenerate replaces the row instead of duplicating it.
+        index_brief(db, brief)
         db.commit()
         logger.info(
             "meeting %s: brief ready (%d decisions, %d risks, %d open questions, %d next steps)",

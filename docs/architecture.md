@@ -29,7 +29,7 @@ Nytka is a local-first monorepo: a FastAPI backend that owns all processing and 
 | Pipeline | `backend/app/pipeline/` | Audio extraction (FFmpeg CLI), transcription (faster-whisper), status machine, resume/retry |
 | LLM layer | `backend/app/llm/` | LiteLLM client, chunking, **BA prompt (versioned product IP)**, structured extraction via Instructor |
 | DB | `backend/app/db/` | SQLAlchemy 2 models, Alembic migrations (auto-applied on startup), default-project seed |
-| Frontend features | `frontend/src/features/` | meetings (upload/list/detail), tasks (notebook), settings (LLM config) |
+| Frontend features | `frontend/src/features/` | meetings (upload/list/detail), tasks (notebook), memory (search + Q&A), settings (LLM config) |
 | Typed client | `frontend/src/lib/client.ts` | All API calls; types generated from the backend OpenAPI schema (`api-types.ts`) |
 
 ## Processing pipeline
@@ -54,6 +54,8 @@ queued → processing → transcribing → extracting → summarizing → done
 projects 1──∞ meetings 1──∞ transcript_segments
     │             │ 1──1 meeting_briefs
     └────∞ tasks ∞┘ (meeting_id nullable — manual tasks allowed)
+
+search_index (FTS5, standalone) ← segments + tasks (triggers), briefs (app code)
 ```
 
 - **meeting_briefs** — one row per meeting (`meeting_id` unique): `summary` text plus JSON point lists (`decisions`, `risks`, `open_questions`, `next_steps`, items `{text, source_timestamp|null}`), own `status` lifecycle `empty → processing → ready | error` so a failed brief never blocks a `done` meeting.
@@ -61,6 +63,38 @@ projects 1──∞ meetings 1──∞ transcript_segments
 - **projects** — carries the LLM config (`llm_provider`, `llm_model`, `llm_base_url`, `llm_api_key`). One default project is seeded; per-project models are the extension point for multi-project support (phase 2).
 - **tasks.status** — `draft → approved | rejected`, `approved → done | draft`, `rejected → draft`, `done` terminal. Transitions are enforced server-side (409 otherwise) and mirrored in the UI. The pipeline never creates anything but `draft` — human review is a hard invariant.
 - **transcript_segments.speaker** — nullable raw diarization label (`SPEAKER_NN`); `meetings.speaker_labels` maps labels to team names, confirmed by the user (no auto-guessing).
+
+## Search index (project memory)
+
+A single SQLite **FTS5** virtual table, `search_index`, makes a project's whole meeting history queryable — no embeddings, no vector store, no external service, so the locality guarantee holds. The canonical DDL lives in `backend/app/db/fts.py`; the Alembic migration `a4e9c1d76b83_search_index_fts` carries a frozen copy (migrations must never import application code).
+
+```
+search_index(text, kind UNINDEXED, project_id UNINDEXED, meeting_id UNINDEXED,
+             ref_id UNINDEXED, t_start UNINDEXED)
+             tokenize = 'unicode61 remove_diacritics 2'   -- Ukrainian + English
+```
+
+`kind` + `ref_id` identify the source row: `segment` → `transcript_segments.id`, `task` → `tasks.id`, `brief` → `meeting_briefs.id`.
+
+- **Segments and tasks sync via SQL triggers** (7 of them: insert/update/delete per table, plus the brief delete). No application code touches the index for them, so every write path — pipeline INSERTs, `PATCH /api/tasks/{id}`, cascading meeting deletes — stays in sync by construction, including code written later that never heard of the index.
+- **Briefs are indexed from application code** (`index_brief`, called from `app/llm/brief.py` when a brief turns `ready`): their content is JSON point lists that a trigger cannot flatten. The upsert is delete-then-insert, so regenerating a brief replaces its row instead of duplicating it. Only the DELETE side is a trigger.
+- **Backfill happens once, in the migration** — triggers only fire from their creation onward, so existing segments, tasks and `ready` briefs are inserted by the upgrade (briefs flattened in Python).
+- **Query sanitisation** (`fts_query`): user input is reduced to `\w` tokens, lowercased, quoted and prefix-matched, capped at 12 tokens. FTS operators are neutralised by construction rather than blacklisted, so no search string can produce a 500. Search runs AND-semantics first and falls back to OR when that returns nothing (recall for question-shaped input).
+- Ranking is `bm25()`; highlighting uses `snippet()` with `\x01`/`\x02` markers instead of HTML (see [api.md](api.md)).
+
+### Q&A flow (`backend/app/llm/qa.py`)
+
+```
+question → search_project(kinds=segment+brief, limit 12)
+             │
+             ├─ no hits → no_data:true, no LLM call at all
+             └─ hits → excerpts "[meeting {id} «title» @ mm:ss] text"
+                        → LLM (Instructor, response_model=AskResult, max_retries=2)
+                        → drop citations whose meeting_id was not in the context
+                        → no citations left? force no_data:true
+```
+
+Tasks are excluded from retrieval on purpose: they are derived text, and quoting them would let the model cite its own earlier output. The excerpt header is the only place a `meeting_id`/`t_start` can come from, which is what makes post-hoc citation validation possible. The same index serves duplicate-candidate lookup for task dedup.
 
 ## Design decisions (deliberate MVP scope)
 

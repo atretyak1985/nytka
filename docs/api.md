@@ -59,6 +59,21 @@ rejected ──▶ draft
 
 LLM provider mapping (see [configuration](configuration.md)): `lmstudio`/`ollama` use `llm_base_url` (OpenAI-compatible endpoints, no key required); `anthropic`/`openai` use `llm_api_key`.
 
+## Project memory (search & Q&A)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/projects/{id}/search` | Full-text search across this project's transcripts, tasks and briefs. Query params: `q` (required), `limit` (default 30, capped at 100). **404** if the project is unknown. |
+| POST | `/api/projects/{id}/ask` | `{question}` → an answer grounded in this project's meetings, with citations. Synchronous (no background job). **404** unknown project, **422** blank question, **502** on LLM failure (API keys redacted from the message). |
+
+`SearchOut`: `{query, hits[]}`. Each hit is `{kind, meeting_id|null, meeting_title|null, task_id|null, t_start|null, snippet}` where `kind` is `segment | task | brief`, `task_id` is set only for `task` hits, and `t_start` (seconds) deep-links into the recording via `?seg=`. Results never cross project boundaries.
+
+`snippet` marks matched terms with the control characters `\x01` (start) and `\x02` (end) — deliberately **not** `<mark>`, because a transcript can itself contain HTML and no client should render markup coming out of the database. Split on those two characters and wrap the parts yourself.
+
+A blank or punctuation-only `q` returns `hits: []` with **200** (the UI searches as you type), and FTS operators in the query (`OR`, `"`, `*`, `NEAR`, parentheses) are neutralised rather than rejected — search input can never produce a 500.
+
+`AskOut`: `{answer, no_data, citations[]}`; each citation is `{meeting_id, meeting_title, t_start|null, quote}`. Contract: when nothing relevant is indexed, the LLM is not called at all and the response is `no_data: true` with an empty citation list. Citations pointing at meetings that were not in the retrieved context are dropped server-side, and an answer left without a single valid citation is forced to `no_data: true` — the answer text is never presented as grounded when it isn't.
+
 ## Error shape
 
 FastAPI default: `{"detail": "<message>"}` with the appropriate HTTP status (404, 409, 413, 422). Pipeline failures don't surface as API errors — they land in the meeting's `status=error` + `error_message`, visible in the UI with a Retry button.

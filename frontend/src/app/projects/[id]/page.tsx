@@ -11,10 +11,11 @@ import { monogram, isLocalProvider } from "@/lib/design-maps";
 import { UploadDropzone } from "@/features/meetings/UploadDropzone";
 import { MeetingList } from "@/features/meetings/MeetingList";
 import { TasksTab } from "@/features/tasks/TasksTab";
+import { MemoryTab } from "@/features/memory/MemoryTab";
 import { SettingsTab } from "@/features/settings/SettingsTab";
 
-type TabKey = "meetings" | "tasks" | "settings";
-const TAB_KEYS: TabKey[] = ["meetings", "tasks", "settings"];
+type TabKey = "meetings" | "tasks" | "memory" | "settings";
+const TAB_KEYS: TabKey[] = ["meetings", "tasks", "memory", "settings"];
 
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -117,6 +118,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       <div className="mb-5.5 flex gap-0.5 border-b border-bb-line" role="tablist" aria-label="Project sections">
         <TabButton label="Meetings" isActive={tab === "meetings"} onClick={() => setTab("meetings")} />
         <TabButton label="Tasks" isActive={tab === "tasks"} onClick={() => setTab("tasks")} badge={draftCount > 0 ? draftCount : undefined} />
+        <TabButton label="Memory" isActive={tab === "memory"} onClick={() => setTab("memory")} />
         <TabButton label="Settings" isActive={tab === "settings"} onClick={() => setTab("settings")} />
       </div>
 
@@ -127,6 +129,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         </div>
       )}
       {tab === "tasks" && <TasksTab projectId={projectId} />}
+      {tab === "memory" && <MemoryTab projectId={projectId} />}
       {tab === "settings" && <SettingsTab project={project} />}
     </div>
   );
